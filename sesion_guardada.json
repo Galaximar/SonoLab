@@ -1,0 +1,44 @@
+{
+  "version": 2,
+  "tipo": "dos_aplausos",
+  "entradas": [
+    {
+      "archivo_a": "audios/A/3A.mp4",
+      "archivo_b": "audios/B/3m2.m4a.mp4",
+      "distancia_m": 3.0
+    },
+    {
+      "archivo_a": "audios/A/4A.mp4",
+      "archivo_b": "audios/B/4m2.m4a.mp4",
+      "distancia_m": 4.0
+    },
+    {
+      "archivo_a": "audios/A/5A.mp4",
+      "archivo_b": "audios/B/5m2.m4a.mp4",
+      "distancia_m": 5.0
+    },
+    {
+      "archivo_a": "audios/A/6A.mp4",
+      "archivo_b": "audios/B/6m2.m4a.mp4",
+      "distancia_m": 6.0
+    },
+    {
+      "archivo_a": "audios/A/7A.mp4",
+      "archivo_b": "audios/B/7m2.m4a.mp4",
+      "distancia_m": 7.0
+    },
+    {
+      "archivo_a": "audios/A/8A.mp4",
+      "archivo_b": "audios/B/8m2.m4a.mp4",
+      "distancia_m": 7.8
+    }
+  ],
+  "temperatura": "20.0",
+  "config_incertidumbre": {
+    "resolucion_distancia_m": 0.001,
+    "altura_min_m": 0.38,
+    "altura_max_m": 0.44,
+    "margen_sillas_m": 0.03,
+    "sillas_fijas": true
+  }
+}

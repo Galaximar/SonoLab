@@ -1,0 +1,22 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="900" height="400" viewBox="0 0 900 400">
+<title>Croquis del montaje de dos celulares y dos aplausos</title>
+<desc>Manos sobre cada micrófono. Primero se aplaude junto a A y después junto a B. La separación d se mide entre micrófonos. Ambos teléfonos permanecen sobre sillas.</desc>
+<defs><marker id="blue" markerWidth="8" markerHeight="8" refX="7" refY="4" orient="auto-start-reverse"><path d="M0,0 L8,4 L0,8" fill="#246889"/></marker><marker id="orange" markerWidth="8" markerHeight="8" refX="7" refY="4" orient="auto"><path d="M0,0 L8,4 L0,8" fill="#ae551f"/></marker></defs>
+<rect width="900" height="400" rx="12" fill="#f6f8fa"/>
+<g font-family="Segoe UI,Arial,sans-serif" fill="#203746" text-anchor="middle">
+<text x="150" y="35" font-size="20" font-weight="bold">1. Aplauso junto a A</text><text x="750" y="35" font-size="20" font-weight="bold">2. Aplauso junto a B</text>
+<text x="450" y="65" font-size="16">Dejar una pausa clara entre ambos</text>
+<circle cx="150" cy="95" r="12" fill="#246889"/><circle cx="750" cy="95" r="12" fill="#ae551f"/>
+<path d="M165 100 L738 199" stroke="#246889" stroke-width="3" marker-end="url(#blue)" fill="none"/>
+<path d="M735 100 L162 199" stroke="#ae551f" stroke-width="3" marker-end="url(#orange)" fill="none"/>
+<path d="M150 110 V195 M750 110 V195" stroke="#667a86" stroke-dasharray="5 4" stroke-width="2"/>
+<text x="112" y="154" font-size="18">h</text><text x="788" y="154" font-size="18">h</text>
+<rect x="125" y="205" width="50" height="65" rx="7" fill="white" stroke="#203746" stroke-width="3"/>
+<rect x="725" y="205" width="50" height="65" rx="7" fill="white" stroke="#203746" stroke-width="3"/>
+<circle cx="150" cy="214" r="3" fill="#203746"/><circle cx="750" cy="214" r="3" fill="#203746"/>
+<path d="M107 275 H193 M117 275 V302 M183 275 V302 M707 275 H793 M717 275 V302 M783 275 V302" stroke="#667a86" stroke-width="4" fill="none"/>
+<text x="150" y="326" font-size="20" font-weight="bold">Celular A</text><text x="750" y="326" font-size="20" font-weight="bold">Celular B</text>
+<path d="M150 350 H750" stroke="#246889" stroke-width="2" marker-start="url(#blue)" marker-end="url(#blue)"/>
+<text x="450" y="378" font-size="18">d: separación entre micrófonos · Croquis sin escala</text>
+<text x="450" y="247" font-size="17">Ambos celulares graban los dos aplausos</text>
+</g></svg>
