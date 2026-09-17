@@ -9,7 +9,6 @@ audio/_convertidos/
 # Salidas y compilaciones regenerables
 resultados/
 build/
-dist/
 
 # Python
 __pycache__/
