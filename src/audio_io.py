@@ -18,7 +18,8 @@ def parse_number(text, name='Distancia'):
 
 
 def ffmpeg_path():
-    bundled = Path(getattr(sys, '_MEIPASS', Path(__file__).parent)) / 'ffmpeg.exe'
+    name = 'ffmpeg.exe' if sys.platform == 'win32' else 'ffmpeg'
+    bundled = Path(getattr(sys, '_MEIPASS', Path(__file__).parent)) / name
     path = str(bundled) if bundled.is_file() else shutil.which('ffmpeg')
     if not path:
         raise ValueError('No se encontró ffmpeg. Usá la distribución completa de SonoLab.')

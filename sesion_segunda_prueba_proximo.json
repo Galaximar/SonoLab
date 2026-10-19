@@ -1,0 +1,47 @@
+{
+  "version": 2,
+  "tipo": "dos_aplausos",
+  "temperatura": "16.0",
+  "config_incertidumbre": {
+    "resolucion_distancia_m": 0.001,
+    "altura_min_m": 0.38,
+    "altura_max_m": 0.44,
+    "margen_sillas_m": 0.03,
+    "sillas_fijas": true,
+    "incluir_altura": false
+  },
+  "entradas": [
+    {
+      "archivo_a": "audios/3_proximo/A/3cerca.mp4",
+      "archivo_b": "audios/3_proximo/B/3cerca.m4a.mp4",
+      "distancia_m": 3.0
+    },
+    {
+      "archivo_a": "audios/3_proximo/A/4cerca.mp4",
+      "archivo_b": "audios/3_proximo/B/4cerca.m4a.mp4",
+      "distancia_m": 4.0
+    },
+    {
+      "archivo_a": "audios/3_proximo/A/5cerca.mp4",
+      "archivo_b": "audios/3_proximo/B/5cerca.m4a.mp4",
+      "distancia_m": 5.0
+    },
+    {
+      "archivo_a": "audios/3_proximo/A/6cerca.mp4",
+      "archivo_b": "audios/3_proximo/B/6cerca.m4a.mp4",
+      "distancia_m": 6.0
+    },
+    {
+      "archivo_a": "audios/3_proximo/A/7cerca.wav",
+      "archivo_b": "audios/3_proximo/B/7cerca.wav",
+      "distancia_m": 7.0,
+      "tratamiento": "Selección por revisión de ondas; ruido externo y ruidos puntuales documentados atenuados. Ondas de aplausos conservadas, sin cortar tiempo. Inicios detectados por el motor."
+    },
+    {
+      "archivo_a": "audios/3_proximo/A/8cerca.wav",
+      "archivo_b": "audios/3_proximo/B/8cerca.wav",
+      "distancia_m": 8.0,
+      "tratamiento": "Selección por revisión de ondas; ruido externo y ruidos puntuales documentados atenuados. Ondas de aplausos conservadas, sin cortar tiempo. Inicios detectados por el motor."
+    }
+  ]
+}

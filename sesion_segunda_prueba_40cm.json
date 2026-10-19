@@ -1,0 +1,44 @@
+{
+  "version": 2,
+  "tipo": "dos_aplausos",
+  "temperatura": "16.0",
+  "config_incertidumbre": {
+    "resolucion_distancia_m": 0.001,
+    "altura_min_m": 0.38,
+    "altura_max_m": 0.44,
+    "margen_sillas_m": 0.03,
+    "sillas_fijas": true,
+    "incluir_altura": false
+  },
+  "entradas": [
+    {
+      "archivo_a": "audios/2_40cm/A/4normal.wav",
+      "archivo_b": "audios/2_40cm/B/4normal.wav",
+      "distancia_m": 4.0,
+      "tratamiento": "Revisión humana de ruido previo al segundo aplauso B; pasaaltos local 150 Hz con fundidos de 2 ms. Inicios calculados por el detector sin cambios. Ver auditoría y límites de la revisión; no es validación de la toma original."
+    },
+    {
+      "archivo_a": "audios/2_40cm/A/5normal.mp4",
+      "archivo_b": "audios/2_40cm/B/5normal.m4a.mp4",
+      "distancia_m": 5.0
+    },
+    {
+      "archivo_a": "audios/2_40cm/A/6normal.wav",
+      "archivo_b": "audios/2_40cm/B/6normal.wav",
+      "distancia_m": 6.0,
+      "tratamiento": "Selección por revisión de ondas; ruido externo y ruidos puntuales documentados atenuados. Ondas de aplausos conservadas, sin cortar tiempo. Inicios detectados por el motor."
+    },
+    {
+      "archivo_a": "audios/2_40cm/A/7normal.wav",
+      "archivo_b": "audios/2_40cm/B/7normal.wav",
+      "distancia_m": 7.0,
+      "tratamiento": "Selección por revisión de ondas; ruido externo y ruidos puntuales documentados atenuados. Ondas de aplausos conservadas, sin cortar tiempo. Inicios detectados por el motor."
+    },
+    {
+      "archivo_a": "audios/2_40cm/A/8normal.mp4",
+      "archivo_b": "audios/2_40cm/B/8normal.wav",
+      "distancia_m": 8.0,
+      "tratamiento": "Revisión humana de ruido previo al segundo aplauso B; pasaaltos local 150 Hz con fundidos de 2 ms. Inicios calculados por el detector sin cambios. Ver auditoría y límites de la revisión; no es validación de la toma original."
+    }
+  ]
+}

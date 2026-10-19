@@ -1,9 +1,9 @@
 """Ventana y controles compartidos de SonoLab; la aplicación inicia en paired_app.py."""
-import os
 import queue
 import tkinter as tk
 from tkinter import ttk, messagebox
 from PIL import Image, ImageTk
+from desktop import open_path
 
 BACKGROUND = '#eef3f6'
 FOREGROUND = '#193348'
@@ -51,9 +51,12 @@ class BaseWindow(tk.Tk):
     def build_widgets(self):
         base = ttk.Frame(self, padding=22)
         base.pack(fill='both', expand=True)
-        ttk.Label(base, text='SonoLab', style='Title.TLabel').pack(anchor='w')
-        ttk.Label(base, text='Medí la velocidad del sonido a partir de tus grabaciones.', style='Sub.TLabel').pack(anchor='w', pady=(0, 16))
+        self.title_label = ttk.Label(base, text='SonoLab', style='Title.TLabel')
+        self.title_label.pack(anchor='w')
+        self.subtitle_label = ttk.Label(base, text='Medí la velocidad del sonido a partir de tus grabaciones.', style='Sub.TLabel')
+        self.subtitle_label.pack(anchor='w', pady=(0, 16))
         controls = ttk.Frame(base)
+        self.header_controls = controls
         controls.pack(fill='x')
         self.add = ttk.Button(controls, text='+ Agregar audios', command=self.add_pair)
         self.add.pack(side='left')
@@ -69,10 +72,10 @@ class BaseWindow(tk.Tk):
         table_frame = ttk.Frame(base)
         table_frame.pack(fill='x', pady=(12, 0))
         self.table = ttk.Treeview(table_frame, columns=(), show='headings', height=4)
-        self.table.pack(side='left', fill='x', expand=True)
         scroll = ttk.Scrollbar(table_frame, orient='vertical', command=self.table.yview)
         self.table.configure(yscrollcommand=scroll.set)
         scroll.pack(side='right', fill='y')
+        self.table.pack(side='left', fill='x', expand=True)
         self.table.tag_configure('aviso', foreground='#945814')
         self.table.tag_configure('fallo', foreground='#ad3541')
         self.table.bind('<<TreeviewSelect>>', self.select_measurement)
@@ -88,6 +91,7 @@ class BaseWindow(tk.Tk):
         self.progress_bar = ttk.Progressbar(base, mode='determinate')
         self.progress_bar.pack(fill='x', pady=(0, 12))
         cards = ttk.Frame(base)
+        self.cards_frame = cards
         cards.pack(fill='x')
         self.metrics = []
         for heading in ['VELOCIDAD DEL AJUSTE', 'DETECCIONES / ARCHIVOS', 'REFERENCIA POR TEMPERATURA']:
@@ -98,7 +102,8 @@ class BaseWindow(tk.Tk):
             value.pack(anchor='w', pady=(5, 0))
             self.metrics.append(value)
         self.notice = tk.StringVar(value='Los resultados son provisionales hasta revisar las señales. La distancia aproximada también aporta incertidumbre.')
-        ttk.Label(base, textvariable=self.notice, wraplength=1120, foreground='#8b5b1c').pack(fill='x', pady=(12, 10))
+        self.notice_label = ttk.Label(base, textvariable=self.notice, wraplength=1120, foreground='#8b5b1c')
+        self.notice_label.pack(fill='x', pady=(12, 10))
         self.tabs = ttk.Notebook(base)
         self.tabs.pack(fill='both', expand=True)
         signal_panel = ttk.Frame(self.tabs)
@@ -186,11 +191,17 @@ class BaseWindow(tk.Tk):
 
     def open_image(self):
         if getattr(self, 'image_path', None):
-            os.startfile(self.image_path)
+            self.open_external(self.image_path)
 
     def open_results(self):
         if self.analysis_result:
-            os.startfile(self.analysis_result['salida'])
+            self.open_external(self.analysis_result['salida'])
+
+    def open_external(self, path):
+        try:
+            open_path(path)
+        except OSError as exc:
+            messagebox.showerror('No se pudo abrir', str(exc), parent=self)
 
     def close(self):
         if self.busy:

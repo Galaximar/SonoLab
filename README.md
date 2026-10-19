@@ -1,26 +1,38 @@
 # SonoLab
 
-Aplicación de escritorio para estimar la velocidad del sonido con **dos celulares y dos aplausos**. Cada medición usa los dos audios de un mismo ensayo y la separación entre micrófonos. El programa detecta los inicios, calcula los tiempos, ajusta una recta y estima el margen de error.
+Aplicación de escritorio para estimar la velocidad del sonido con **dos micrófonos separados y dos aplausos**. Cada medición usa los dos audios de un mismo ensayo y la separación entre micrófonos. El programa detecta los inicios, calcula los tiempos, ajusta una recta y estima el margen de error.
 
 Este README reúne la documentación de uso, instalación, código y cálculos. La [bitácora](bitacora/bitacora.md) conserva el desarrollo del experimento, sus resultados y los problemas encontrados.
+
+Las grabaciones se organizan por tanda en `1_40cm`, `2_40cm` y `3_proximo`, con subcarpetas `A` y `B` para los dos micrófonos. `40cm` identifica los aplausos a una separación aproximada de 30–40 cm del micrófono; `proximo` identifica los aplausos más cercanos. Estas etiquetas no cambian la separación entre micrófonos ni agregan una corrección de altura. Las sesiones vigentes están en la raíz del proyecto.
 
 ## 1. Probar el ejecutable
 
 En Windows:
 
 1. Abrir [dist/SonoLab.exe](dist/SonoLab.exe).
-2. Ir a **Archivo → Abrir sesión** y elegir [sesion_guardada.json](sesion_guardada.json), en la raíz del proyecto.
+2. Ir a **Archivo → Abrir sesión** y elegir [sesion_primera_prueba_40cm.json](sesion_primera_prueba_40cm.json), [sesion_segunda_prueba_40cm.json](sesion_segunda_prueba_40cm.json) o [sesion_segunda_prueba_proximo.json](sesion_segunda_prueba_proximo.json), en la raíz del proyecto.
 3. Pulsar **Analizar pares**.
 
 El ejecutable incluye Python, las bibliotecas y FFmpeg. Para usarlo no hace falta instalarlos aparte.
 
-El JSON de ejemplo contiene seis pares a **3; 4; 5; 6; 7 y 7,8 m**, sin marcas manuales. Los doce audios están incluidos en `audios/A` y `audios/B`. La sesión utiliza rutas relativas a su propia ubicación. Para probarla en otra computadora, copiar la carpeta del proyecto conservando esa estructura.
+Las sesiones contienen los siguientes pares, sin marcas manuales:
+
+| Carpeta dentro de `audios` | Tanda | Temperatura | Separación entre micrófonos | Pares activos |
+| --- | --- | ---: | --- | ---: |
+| `1_40cm` | Primera | 20 °C | 3; 4; 5; 6; 7 y 7,8 m | 6 |
+| `2_40cm` | Segunda, aplausos a unos 40 cm | 16 °C | 4; 5; 6; 7 y 8 m | 5 |
+| `3_proximo` | Segunda, aplausos más próximos | 16 °C | 3; 4; 5; 6; 7 y 8 m | 6 |
+
+El par de **3 m de `2_40cm`** está retirado de la selección activa y de la sesión combinada. Se conserva fuera de `audios`, en `resultados/reorganizacion_audios_20261019/retirados`, para mantener el registro. Los pares de 3 m de las otras dos tandas permanecen incluidos.
+
+Las rutas de cada JSON son relativas a su propia ubicación. Para usarlas en otra computadora, copiar los JSON y la carpeta `audios` conservando esa estructura. `sesion_guardada.json` también apunta a la primera tanda con las rutas actualizadas.
 
 ## 2. Iniciar desde el código
 
 ### Requisitos
 
-- Windows: la interfaz, la apertura de archivos y el empaquetado están preparados para este sistema.
+- Windows o Linux con escritorio gráfico. Cada ejecutable se compila en su propio sistema operativo.
 - Python con Tkinter. El proyecto se ha ejecutado y compilado con **Python 3.12**.
 - FFmpeg instalado y disponible en `PATH`.
 - Dependencias de [requirements.txt](requirements.txt).
@@ -29,13 +41,13 @@ El JSON de ejemplo contiene seis pares a **3; 4; 5; 6; 7 y 7,8 m**, sin marcas m
 | ----------- | ------------------------------------------------------------------------------------------------------ |
 | NumPy       | Vectores, estadística y álgebra del ajuste.                                                            |
 | SciPy       | Lectura WAV, filtros y envolvente de la señal.                                                         |
-| Matplotlib  | Gráficos PNG de los audios y del ajuste.                                                               |
+| Matplotlib  | Gráficos PNG e interfaces interactivas del ajuste y la referencia térmica.                             |
 | Pillow      | Mostrar y redimensionar los gráficos en la ventana.                                                    |
 | Tkinter     | Ventanas, botones, tablas y diálogos; viene con la instalación de Python para Windows que se usa aquí. |
 | FFmpeg      | Extraer y convertir audio de WAV, MP4, M4A, MPEG y otros formatos que admita la instalación.           |
 | PyInstaller | Crear el ejecutable; solo se necesita para compilar.                                                   |
 
-### Preparación en PowerShell
+### Preparación en Windows (PowerShell)
 
 Abrir una terminal en la carpeta del proyecto. Estos comandos usan un entorno virtual sin necesidad de activarlo:
 
@@ -63,6 +75,33 @@ Iniciar SonoLab:
 ```powershell
 .\.venv\Scripts\python.exe src/paired_app.py
 ```
+
+### Preparación en Linux (Bash)
+
+En Ubuntu o Debian, abrir una terminal en la carpeta del proyecto e instalar Python, Tkinter, FFmpeg y las utilidades para abrir archivos desde el escritorio:
+
+```bash
+sudo apt-get update
+sudo apt-get install python3 python3-venv python3-tk ffmpeg xdg-utils
+```
+
+Crear un entorno virtual e instalar las dependencias. Tampoco es necesario activarlo:
+
+```bash
+python3 --version
+python3 -m venv .venv-linux
+.venv-linux/bin/python -m pip install -r requirements.txt
+ffmpeg -version
+command -v ffmpeg
+```
+
+Iniciar SonoLab desde una sesión de escritorio gráfico:
+
+```bash
+.venv-linux/bin/python src/paired_app.py
+```
+
+En otras distribuciones, instalar los paquetes equivalentes con su gestor de paquetes; los comandos del entorno virtual y de inicio son los mismos.
 
 El punto de entrada es **`paired_app.py`**. `app.py` contiene la ventana base y no se ejecuta como aplicación independiente.
 
@@ -93,11 +132,30 @@ Para darle otro nombre:
 
 El nombre admite letras, números, guion y guion bajo. La salida será `dist/MiSonoLab.exe`.
 
-**El script genera el ejecutable.** `sesion_guardada.json` está en la raíz y los audios en `audios/`, fuera de `dist`; se conservan aunque se borre y reconstruya esa carpeta. Una sesión nueva se crea desde **Archivo → Guardar sesión**. Para entregar el proyecto con el ejemplo, incluir el JSON, `audios/` y el ejecutable de `dist/`.
+**El script genera el ejecutable.** Los JSON de primera versión, segunda normal y segunda cerca están en la raíz y los audios en `audios/`, fuera de `dist`; se conservan aunque se borre y reconstruya esa carpeta. Una sesión nueva se crea desde **Archivo → Guardar sesión**. Para entregar el proyecto con los ejemplos, incluir los JSON, `audios/` y el ejecutable de `dist/`.
+
+### Compilar para Linux
+
+Ejecutable disponible: [dist/linux/SonoLab](dist/linux/SonoLab). Para usarlo en otra computadora, copiar ese archivo, los JSON de las sesiones y la carpeta `audios` con sus 34 archivos activos. Mantener los JSON junto a la carpeta `audios` para conservar las rutas relativas. Fue probado en Ubuntu 24.04 x86-64 con los 17 pares activos de las tres series. El registro de esta comprobación está en `resultados/reorganizacion_audios_20261019/verificacion_linux.json`.
+
+El mismo script genera `dist/linux/SonoLab` al ejecutarse en Linux. La compilación para Windows genera un `.exe`; para Linux se necesita ejecutar PyInstaller dentro de Linux, por ejemplo mediante WSL. La compatibilidad depende también de la arquitectura y de la versión de glibc: una compilación hecha en Ubuntu 24.04 x86-64 no garantiza funcionar en distribuciones anteriores. [Documentación de PyInstaller](https://pyinstaller.org/en/stable/usage.html#supporting-multiple-operating-systems).
+
+Después de completar la preparación para Linux de la sección 2, ejecutar desde la raíz del proyecto. En Ubuntu o Debian, instalar también `binutils`, necesario para compilar:
+
+```bash
+sudo apt-get install binutils
+.venv-linux/bin/python -m pip install -r requirements-build.txt
+.venv-linux/bin/python build_exe.py
+./dist/linux/SonoLab
+```
+
+Python, Tk, las bibliotecas de cálculo y FFmpeg se incluyen en el ejecutable. El equipo de destino necesita un escritorio gráfico y bibliotecas del sistema compatibles. `xdg-utils` permite abrir carpetas y gráficos con las aplicaciones del escritorio. Para indicar otra carpeta de salida, usar `--dist-dir`; `--name` cambia el nombre en ambos sistemas.
+
+Las sesiones `sesion_primera_prueba_40cm.json`, `sesion_segunda_prueba_40cm.json` y `sesion_segunda_prueba_proximo.json` usan rutas relativas con `/` y funcionan en ambos sistemas si permanecen junto a la carpeta `audios`.
 
 ## 4. Preparar y cargar una medición
 
-1. Apoyar los celulares A y B en posiciones fijas y medir la separación entre micrófonos.
+1. Ubicar los micrófonos A y B en posiciones fijas y medir la separación entre micrófonos.
 2. Registrar dónde quedan las manos respecto de los micrófonos.
 3. Iniciar ambas grabaciones; no hace falta hacerlo al mismo tiempo.
 4. Dar un aplauso junto a A y, después de una pausa clara, otro junto a B. La pausa puede ser de uno o dos segundos, sin necesidad de exactitud.
@@ -117,13 +175,22 @@ El nombre admite letras, números, guion y guion bajo. La salida será `dist/MiS
 | Temperatura                      | Valor opcional para la referencia teórica; no cambia la detección ni la velocidad medida.                                                      |
 | Analizar pares                   | Convierte los audios, detecta, calcula y exporta.                                                                                              |
 | Audios A y B · marcas            | Muestra una medición seleccionada: A a la izquierda, B a la derecha; arriba audios completos, en medio primer aplauso y abajo segundo aplauso. |
-| Ajuste lineal · puntos y recta   | Muestra tiempos frente a distancia, recta y cálculo de la velocidad.                                                                           |
+| Ajuste lineal · puntos y recta   | Muestra tiempos frente a distancia, recta y cálculo de la velocidad; resalta con un círculo naranja la toma seleccionada en la tabla.          |
+| Temperatura · referencia         | Curva teórica entre −20 y 40 °C, control para explorar temperaturas y botones de comparación a 16 y 20 °C.                                     |
 | Resumen del experimento          | Resume el análisis y sus avisos.                                                                                                               |
 | Incertidumbre · fuentes de error | Explica el ± y los aportes calculados. No contiene un botón de configuración.                                                                  |
 | Abrir resultados                 | Abre la carpeta con los archivos exportados.                                                                                                   |
 | Archivo                          | Guarda y abre sesiones JSON.                                                                                                                   |
 
+**¿Cómo funciona?** abre una guía visual en seis secciones, con ejemplos de los controles, esquemas del montaje y de las marcas, y los iconos de las herramientas del gráfico. Explica los botones, las pestañas, los estados, el margen estimado y el guardado de sesiones. Se recorre con el índice lateral o con **Anterior / Siguiente**; puede quedar abierta mientras se usa SonoLab. **Cerrar guía** o **Esc** cierran únicamente la ayuda.
+
 Al cambiar una entrada se invalidan los resultados visibles; hay que volver a analizar. Las exportaciones anteriores se conservan. No hay una casilla de revisión: el ajuste usa todos los pares que se pueden calcular. Una velocidad individual no recibe automáticamente un ±.
+
+La columna **Estado** muestra **Pendiente** antes de analizar, **Procesado** cuando se pudo calcular la velocidad y **Sin medición** cuando no se pudo. Los avisos del resumen detallan cualquier aspecto que requiera revisión, también en los pares con estado **Procesado**.
+
+Para la demostración, seleccionar una fila permite recorrer los dos audios completos, sus ampliaciones y marcas, y localizar **esa misma toma** en ΔT frente a distancia. Si hay repeticiones, la recta sigue ajustando los promedios por distancia; el círculo naranja indica la toma individual, que puede estar separada del promedio. **Ampliar gráfico** conserva el resaltado y sigue los cambios de selección; su barra permite acercar, desplazar o guardar el gráfico.
+
+En **Temperatura · referencia**, el círculo azul marca la temperatura del último análisis y el punto naranja sigue el control de exploración. Los botones **16 °C** y **20 °C** permiten compararlas directamente. Este control no modifica la temperatura guardada, los tiempos, el ajuste ni su margen. La temperatura del análisis se introduce en el campo superior antes de pulsar **Analizar pares**. Sin temperatura registrada, se puede explorar la curva y no aparece el marcador azul. El PNG `ajuste.png` exportado sigue mostrando el ajuste general; para guardar una selección concreta, usar la barra de la ventana ampliada.
 
 ## 5. Estructura del código
 
@@ -136,16 +203,30 @@ Taller/
 ├── src/
 │   ├── paired_app.py
 │   ├── app.py
+│   ├── demonstration.py
+│   ├── help_guide.py
 │   ├── two_claps.py
 │   ├── audio_io.py
 │   ├── sound_math.py
 │   └── uncertainty.py
-├── sesion_guardada.json
+├── sesion_primera_prueba_40cm.json
+├── sesion_segunda_prueba_40cm.json
+├── sesion_segunda_prueba_proximo.json
+├── sesion_segunda_version_completa.json
 ├── audios/
-│   ├── A/
-│   └── B/
+│   ├── 1_40cm/
+│   │   ├── A/
+│   │   └── B/
+│   ├── 2_40cm/
+│   │   ├── A/
+│   │   └── B/
+│   └── 3_proximo/
+│       ├── A/
+│       └── B/
 ├── dist/
-│   └── SonoLab.exe
+│   ├── SonoLab.exe
+│   └── linux/
+│       └── SonoLab
 └── bitacora/
     ├── bitacora.md
     └── anexos/
@@ -153,16 +234,20 @@ Taller/
 
 Los audios se seleccionan desde cualquier carpeta; no se deducen sus distancias de los nombres.
 
-| Archivo                                        | Responsabilidad y elementos principales                                                                                                                                                                                                                                                                        |
-| ---------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| [paired_app.py](src/paired_app.py)               | Entrada `main()`. `PairDialog` recoge y valida una medición. `SonoLabApp` controla filas, edición, sesiones, análisis y paneles específicos.                                                                                                                                                                  |
-| [app.py](src/app.py)                           | Clase base `BaseWindow`: estilo, controles comunes, cola de eventos, bloqueo durante el análisis, visualización de imágenes y cierre.                                                                                                                                                                              |
-| [two_claps.py](src/two_claps.py)         | `analyze_pairs()` coordina todo. `validate_entries()` revisa pares; `detect_claps()` busca inicios; `measure_audio()` admite marcas manuales; `calculate_pair()` calcula tiempos y velocidad; `plot_pair()` dibuja señales. También agrupa repeticiones, genera el gráfico del ajuste y exporta archivos. |
-| [audio_io.py](src/audio_io.py) | `parse_number()` admite coma o punto decimal y exige valores finitos. `ffmpeg_path()` localiza FFmpeg. `convert_audio()` prepara WAV. `sanitize_json()` convierte valores no finitos a `None` para exportarlos como `null`.                                                                                                     |
-| [sound_math.py](src/sound_math.py)                           | `load_wav()` lee y centra la señal; `linear_fit()` calcula la regresión; `LinearFit` contiene resultados y propiedades de velocidad/error; `reference_speed()` calcula la referencia térmica.                                                                                                              |
-| [uncertainty.py](src/uncertainty.py)       | `EXPERIMENT_CONFIG` define valores iniciales; `validate_config()` los valida; `uncertainty_budget()` calcula las fuentes de error; `explain_uncertainty()` arma el texto y `format_speed()` muestra el resultado con su ±.                                                                                                    |
+[help_guide.py](src/help_guide.py) contiene la ventana de ayuda, su navegación y sus ejemplos visuales. Los ejemplos de controles no ejecutan acciones sobre la sesión.
 
-El método usa dos sonidos directos: uno cerca de cada celular.
+[demonstration.py](src/demonstration.py) contiene los gráficos de demostración: `FitPlot` conecta la selección con los puntos y `TemperaturePlot` permite explorar la referencia térmica. Estas vistas usan los resultados ya calculados y no vuelven a detectar los aplausos.
+
+| Archivo                              | Responsabilidad y elementos principales                                                                                                                                                                                                                                                                   |
+| ------------------------------------ | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| [paired_app.py](src/paired_app.py)   | Entrada `main()`. `PairDialog` recoge y valida una medición. `SonoLabApp` controla filas, edición, sesiones, análisis y paneles específicos.                                                                                                                                                              |
+| [app.py](src/app.py)                 | Clase base `BaseWindow`: estilo, controles comunes, cola de eventos, bloqueo durante el análisis, visualización de imágenes y cierre.                                                                                                                                                                     |
+| [two_claps.py](src/two_claps.py)     | `analyze_pairs()` coordina todo. `validate_entries()` revisa pares; `detect_claps()` busca inicios; `measure_audio()` admite marcas manuales; `calculate_pair()` calcula tiempos y velocidad; `plot_pair()` dibuja señales. También agrupa repeticiones, genera el gráfico del ajuste y exporta archivos. |
+| [audio_io.py](src/audio_io.py)       | `parse_number()` admite coma o punto decimal y exige valores finitos. `ffmpeg_path()` localiza FFmpeg. `convert_audio()` prepara WAV. `sanitize_json()` convierte valores no finitos a `None` para exportarlos como `null`.                                                                               |
+| [sound_math.py](src/sound_math.py)   | `load_wav()` lee y centra la señal; `linear_fit()` calcula la regresión; `LinearFit` contiene resultados y propiedades de velocidad/error; `reference_speed()` calcula la referencia térmica.                                                                                                             |
+| [uncertainty.py](src/uncertainty.py) | `EXPERIMENT_CONFIG` define valores iniciales; `validate_config()` los valida; `uncertainty_budget()` calcula las fuentes de error; `explain_uncertainty()` arma el texto y `format_speed()` muestra el resultado con su ±.                                                                                |
+
+El método usa dos sonidos directos: uno cerca de cada micrófono.
 
 ### Recorrido de un análisis
 
@@ -190,8 +275,15 @@ La detección recibe **la señal y su frecuencia de muestreo**. No recibe distan
 5. **Resolver ruidos graves adicionales.** Si hay más de dos grupos o se descarta alguno, se intenta localizar dos eventos con un filtro pasaaltos Butterworth de orden 4 y corte `min(1000 Hz, 0,2·fs)`. Con la conversión habitual, el corte es 1000 Hz. Si aparecen exactamente dos candidatos se usan sus zonas; si aparecen más de dos se rechaza la ambigüedad. Si aparecen menos, se conserva la selección previa y se vuelve a exigir que tenga dos grupos.
 6. **Marcar el comienzo en la señal original.** Se estima el fondo previo entre aproximadamente 200 y 80 ms antes del grupo. Se busca hacia adelante el primer tramo que supera el umbral al menos 1 ms, después del último tramo de fondo de al menos 10 ms. No se marca simplemente el máximo.
 7. **Evaluar sensibilidad.** Se repite con factores `0,75; 1; 1,5`. El nivel es `base + factor·max(8·MAD_local; 3·base; 0,02·pico_local)`. La marca central corresponde al factor 1. Se exige una separación final de al menos 250 ms entre los dos inicios.
+8. **Reducir graves previos automáticamente cuando hay evidencia.** Dos bandas diagnósticas (pasaaltos de 1000 y 2000 Hz) deben coincidir dentro de 3 ms al localizar un frente más fuerte. El inicio temprano de banda completa debe estar al menos 12 ms antes y conservar como máximo el 25 % de su energía al quitar graves con 150 Hz. Solo entonces se aplica un pasaaltos local de 150 Hz, con fundidos de 1 ms, que termina antes del frente agudo. El audio se procesa en memoria; el archivo, su duración y el eje temporal permanecen intactos. Se conserva la detección anterior si la limpieza alcanza las muestras alrededor del inicio publicado o si alguna variante no puede marcarlo.
 
-Se rechazan audios inválidos, demasiado cortos, pulsos recortados en los extremos y sonidos sin fondo o frente distinguible. Aunque el detector admite emisiones prolongadas, los aplausos breves facilitan identificar el mismo inicio físico en ambos teléfonos.
+La sensibilidad del paso 8 incluye **nueve variantes**: cortes de 100, 150 y 250 Hz y final de ventana desplazado −1, 0 y +1 ms, además de los tres umbrales de cada variante. `marcas_sensibilidad` contiene todos esos candidatos; el presupuesto de incertidumbre los utiliza. `procesamiento_automatico` registra regiones y parámetros; los gráficos las sombrean en amarillo sobre la señal de entrada. `detect_claps(x, fs, reduce_rumble=False)` permite comparar desde código con el detector anterior. Las marcas manuales se respetan.
+
+Esta mejora aborda ruido grave anterior a un evento ya localizado. **No resuelve automáticamente varios golpes ambiguos ni aplica recortes humanos guardados.** La coincidencia con marcas revisadas no equivale a una calibración física. En las 24 grabaciones originales respaldadas de la segunda versión recupera el par «4 normal» y corrige el inicio de «8 normal»; en la evaluación previa al retiro del par de 3 m, las 24 grabaciones instaladas conservaron sus marcas.
+
+La reducción espectral y los filtros deben usarse con cuidado alrededor de transitorios; la documentación de [Audacity sobre reducción de ruido](https://manual.audacityteam.org/man/noise_reduction.html) explica que aumentar la sensibilidad también puede retirar señal deseada. La comparación de bandas es una decisión de este detector, no una implementación de Audacity.
+
+Se rechazan audios inválidos, demasiado cortos, pulsos recortados en los extremos y sonidos sin fondo o frente distinguible. Aunque el detector admite emisiones prolongadas, los aplausos breves facilitan identificar el mismo inicio físico en ambos micrófonos.
 
 ### Marcas manuales y sensibilidad
 
@@ -293,6 +385,9 @@ La interfaz utiliza `uncertainty_budget()` de `uncertainty.py`. Conserva la velo
 | `altura_max_m`           | Altura máxima.                                                                     |        0.44 m |
 | `margen_sillas_m`        | Margen de un lado, ±a, en la separación total entre micrófonos.                    |        0.03 m |
 | `sillas_fijas`           | Desplazamiento común entre separaciones si es `true`; independiente si es `false`. |        `true` |
+| `incluir_altura`         | Incluye la variación de altura y el desplazamiento geométrico asociado.            |        `true` |
+
+Con `incluir_altura: false`, los valores de altura quedan inactivos: se propagan cinta, detección y posición de los micrófonos sobre `q = d`, y se conserva la estimación de dispersión residual adicional. El modelo de sillas fijas sigue activo; un desplazamiento común de todas las distancias se absorbe en el intercepto y no cambia la pendiente.
 
 Con distribución uniforme, un intervalo de ancho L tiene incertidumbre estándar `L/√12`; un margen ±a, `a/√3`. Son la misma fórmula porque `L = 2a`.
 
@@ -303,17 +398,17 @@ u_h = (altura_máxima − altura_mínima)/√12 = 0,01732 m
 u_s = margen_sillas/√3 = 0,01732 m
 ```
 
-Estas son incertidumbres de las entradas, todavía no aportes en m/s. La cinta solo incluye redondeo. Los ±3 cm corresponden a la separación total, no a cada teléfono.
+Estas son incertidumbres de las entradas, todavía no aportes en m/s. La cinta solo incluye redondeo. Los ±3 cm corresponden a la separación total, no a cada micrófono.
 
 ### Geometría y sensibilidad de la velocidad
 
-El escenario supone manos verticalmente sobre sus micrófonos, teléfonos a la misma altura e igual altura de manos en los dos extremos de cada ensayo. La altura puede variar entre separaciones:
+El escenario supone manos verticalmente sobre sus micrófonos, micrófonos a la misma altura e igual altura de manos en los dos extremos de cada ensayo. La altura puede variar entre separaciones:
 
 ```text
 q_i = √(d_i²+h²) − h
 ```
 
-La raíz representa el recorrido al teléfono lejano; h, el recorrido al cercano. Se hace un ajuste auxiliar `y = m_g q + b_g`, con los mismos pesos que el ajuste principal, y se calcula `v_g = 2/m_g`. Este valor auxiliar **no reemplaza la velocidad publicada**.
+La raíz representa el recorrido al micrófono lejano; h, el recorrido al cercano. Se hace un ajuste auxiliar `y = m_g q + b_g`, con los mismos pesos que el ajuste principal, y se calcula `v_g = 2/m_g`. Este valor auxiliar **no reemplaza la velocidad publicada**.
 
 Para propagar las entradas se calculan derivadas, o coeficientes de sensibilidad. Con medias ponderadas q̄, ȳ y `Q = Σw_i(q_i−q̄)²`:
 
@@ -424,8 +519,8 @@ Ejemplo de estructura con un par de los audios incluidos; el JSON completo conti
   "tipo": "dos_aplausos",
   "entradas": [
     {
-      "archivo_a": "audios/A/3A.mp4",
-      "archivo_b": "audios/B/3m2.m4a.mp4",
+      "archivo_a": "audios/1_40cm/A/3A.mp4",
+      "archivo_b": "audios/1_40cm/B/3m2.m4a.mp4",
       "distancia_m": 3.0
     }
   ],
@@ -446,6 +541,7 @@ Ejemplo de estructura con un par de los audios incluidos; el JSON completo conti
 - En JSON los decimales llevan **punto**, aunque los campos de entrada de la aplicación admitan coma.
 - Para cambiar las fuentes de incertidumbre, editar `config_incertidumbre`, volver a abrir la sesión y analizar. La pestaña muestra los valores, pero no los edita.
 - Si falta esa configuración, se usan los valores de `EXPERIMENT_CONFIG`. Esos valores corresponden a esta serie y deben revisarse para otro montaje.
+- Para excluir **solo el aporte por altura de las manos**, usar `"incluir_altura": false` dentro de `config_incertidumbre`. Se omiten la variación de altura y su desplazamiento geométrico; se conservan cinta, posición de los micrófonos, detección y dispersión residual adicional. Esto no equivale a medir una altura de cero. Si falta `incluir_altura`, se conserva el comportamiento anterior (`true`). No usar `null` para quitar únicamente la altura.
 - Las rutas relativas se resuelven desde la carpeta del JSON, independientemente de dónde se inicie el programa. También se admiten rutas absolutas de sesiones anteriores. Al guardar, se usan rutas relativas al destino del JSON; si un audio está en otra unidad de Windows, se conserva su ruta absoluta.
 
 ## 11. Archivos exportados
@@ -475,7 +571,7 @@ Las grabaciones originales permanecen intactas. Un archivo que falla puede dejar
 
 | Problema                                  | Qué revisar                                                                                                          |
 | ----------------------------------------- | -------------------------------------------------------------------------------------------------------------------- |
-| No aparece la ventana al ejecutar código  | Ejecutar `src/paired_app.py` con el Python del entorno virtual; comprobar Tkinter y las dependencias.                 |
+| No aparece la ventana al ejecutar código  | Ejecutar `src/paired_app.py` con el Python del entorno virtual; comprobar Tkinter y las dependencias.                |
 | No se encuentra FFmpeg                    | Comprobar `Get-Command ffmpeg` desde la misma terminal. Para compilar también tiene que estar en `PATH`.             |
 | No abre el JSON                           | Comprobar sintaxis, `tipo`, rutas y que los audios estén disponibles.                                                |
 | No detecta dos eventos                    | Revisar ruido, recortes y separación; ampliar el gráfico, usar marcas manuales o repetir la toma.                    |
@@ -483,3 +579,21 @@ Las grabaciones originales permanecen intactas. Un archivo que falla puede dejar
 | «Sin ajuste»                              | Tener al menos tres separaciones distintas con velocidad calculada y una pendiente positiva.                         |
 | «± pendiente»                             | Alguna marca usada no tiene referencia suficiente para estimar su sensibilidad. Revisar los avisos de incertidumbre. |
 | El ejecutable no se reemplaza al compilar | Cerrar todas las instancias de SonoLab antes de volver a ejecutar `build_exe.py`.                                    |
+
+## 13. Pruebas de posición del aplauso y temperatura
+
+### Posición del aplauso
+
+El sonido sale de las manos. Si se aplaude por encima de un micrófono, el sonido tiene que recorrer una distancia hasta llegar incluso al micrófono más cercano. También cambia el recorrido hacia el otro micrófono. Por eso, la posición del aplauso puede modificar los tiempos medidos.
+
+El programa obtiene la velocidad comparando cuánto cambian esos tiempos al aumentar la separación entre los micrófonos. Si los aplausos se producen a una altura parecida sobre cada micrófono en todas las tomas, esa altura introduce un cambio parecido en los tiempos de cada medición. La forma en que los tiempos crecen con la separación se modifica poco y, por lo tanto, también cambia poco la velocidad obtenida del ajuste. Esto supone que la altura del aplauso es pequeña frente a la separación entre micrófonos.
+
+Si la posición de las manos varía entre tomas, su efecto también varía y puede aumentar la dispersión o alterar la velocidad calculada. La influencia de la posición depende, entonces, tanto de dónde se aplaude como de cuánto cambia esa ubicación entre mediciones.
+
+### Temperatura
+
+La velocidad del sonido no tiene un único valor válido para todas las condiciones. En el aire, aumenta cuando sube la temperatura y disminuye cuando baja. Esto significa que dos experiencias realizadas a distintas temperaturas pueden tener velocidades reales diferentes, aunque se utilicen los mismos micrófonos y el mismo procedimiento.
+
+Por eso, cada medición debe compararse con la referencia teórica correspondiente a la temperatura del aire durante esa experiencia. Usar siempre una misma referencia puede hacer que un cambio físico esperado se interprete como un error del método. A su vez, una diferencia entre mediciones no puede atribuirse únicamente a la temperatura si también cambiaron otras condiciones, como la posición del aplauso o la precisión con que se detectaron sus inicios.
+
+La posibilidad de observar ese efecto depende de la incertidumbre experimental. Si el cambio de velocidad esperado entre dos temperaturas es pequeño frente al margen de las mediciones, los resultados no permiten distinguirlo con claridad. Esto no significa que la temperatura deje de influir, sino que la precisión del experimento no alcanza para separar ese cambio de las demás variaciones de la medición.

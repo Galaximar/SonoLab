@@ -40,7 +40,37 @@ def _sound_groups(env, fs):
     return retained, len(groups)-len(retained)
 
 
-def detect_claps(x, fs):
+def _onset_markers(env, fs, start, end, peak_fraction=.02):
+    """Tres umbrales del frente; la fracción mayor se usa solo para diagnosticar."""
+    local = float(np.max(env[start:end+1]))
+    search_start = max(0, start-round(.20*fs))
+    background = env[search_start:max(search_start+1, start-round(.08*fs))]
+    base = float(np.median(background))
+    spread = float(np.median(np.abs(background-base)))
+    markers = []
+    for factor in [.75, 1.0, 1.5]:
+        level = base + factor*max(8*spread, 3*base, peak_fraction*local)
+        above_threshold = env[search_start:end+1] > level
+        previous_quiet = ~above_threshold[:start-search_start+1]
+        quiet_edges = np.diff(np.r_[False, previous_quiet, False].astype(np.int8))
+        quiet_starts = np.flatnonzero(quiet_edges == 1)
+        quiet_ends = np.flatnonzero(quiet_edges == -1)
+        pauses = quiet_ends[quiet_ends-quiet_starts >= round(.01*fs)]
+        if not len(pauses):
+            raise ValueError('No se distingue un tramo de fondo antes del sonido. Revisá el primer frente manualmente.')
+        edges = np.diff(np.r_[False, above_threshold, False].astype(np.int8))
+        starts, ends = np.flatnonzero(edges == 1), np.flatnonzero(edges == -1)
+        candidates = starts[(ends-starts >= max(2, round(.001*fs))) & (starts >= int(pauses[-1]))]
+        if not len(candidates):
+            raise ValueError('No hay un primer frente que sobresalga del fondo durante 1 ms. Revisá el inicio manualmente.')
+        j = search_start+int(candidates[0])
+        if j <= search_start+1:
+            raise ValueError('El sonido ya estaba activo al comenzar la ventana de búsqueda del inicio. Revisá la marca manualmente.')
+        markers.append(j/fs)
+    return markers
+
+
+def _detect_claps_without_cleanup(x, fs, *, return_groups=False):
     """Marca el primer frente significativo de cada una de dos emisiones.
 
     El agrupamiento de 120 ms evita contar oscilaciones y colas como aplausos
@@ -87,35 +117,7 @@ def detect_claps(x, fs):
         # La duracion de la cola no define el comienzo: un grito puede durar mas
         # de 180 ms. Se recorre hacia adelante desde el fondo anterior, sin
         # retroceder desde el maximo tardio del sonido.
-        local = float(np.max(env[start:end+1]))
-        search_start = max(0, start-round(.20*fs))
-        background = env[search_start:max(search_start+1, start-round(.08*fs))]
-        base = float(np.median(background))
-        spread = float(np.median(np.abs(background-base)))
-        hold_samples = max(2, round(.001*fs))
-        markers = []
-        for factor in [.75, 1.0, 1.5]:
-            level = base + factor*max(8*spread, 3*base, .02*local)
-            above_threshold = env[search_start:end+1] > level
-            # El frente debe seguir al ultimo tramo de fondo antes del grupo:
-            # evita marcar un roce aislado 100–200 ms antes del sonido principal.
-            previous_quiet = ~above_threshold[:start-search_start+1]
-            quiet_edges = np.diff(np.r_[False, previous_quiet, False].astype(np.int8))
-            quiet_starts = np.flatnonzero(quiet_edges == 1)
-            quiet_ends = np.flatnonzero(quiet_edges == -1)
-            pauses = quiet_ends[quiet_ends-quiet_starts >= round(.01*fs)]
-            if not len(pauses):
-                raise ValueError('No se distingue un tramo de fondo antes del sonido. Revisá el primer frente manualmente.')
-            boundary = int(pauses[-1])
-            edges = np.diff(np.r_[False, above_threshold, False].astype(np.int8))
-            starts, ends = np.flatnonzero(edges == 1), np.flatnonzero(edges == -1)
-            candidates = starts[(ends-starts >= hold_samples) & (starts >= boundary)]
-            if not len(candidates):
-                raise ValueError('No hay un primer frente que sobresalga del fondo durante 1 ms. Revisá el inicio manualmente.')
-            j = search_start+int(candidates[0])
-            if j <= search_start+1:
-                raise ValueError('El sonido ya estaba activo al comenzar la ventana de búsqueda del inicio. Revisá la marca manualmente.')
-            markers.append(j/fs)
+        markers = _onset_markers(env, fs, start, end)
         times.append(markers[1])
         sensitivity.append(markers)
     if times[1]-times[0] < .25:
@@ -124,13 +126,112 @@ def detect_claps(x, fs):
     # mismo factor permite cancelaciones y subestima la sensibilidad del intervalo.
     interval_min = min(sensitivity[1])-max(sensitivity[0])
     interval_max = max(sensitivity[1])-min(sensitivity[0])
-    return dict(tiempos=times, intervalo=times[1]-times[0],
+    result = dict(tiempos=times, intervalo=times[1]-times[0],
                 sensibilidad_s=float(interval_max-interval_min),
                 marcas_por_umbral=sensitivity,
                 intervalo_min_s=interval_min, intervalo_max_s=interval_max,
                 origen='automático · primer frente',
                 seleccion=selection,
                 avisos=notices)
+    return (result, groups) if return_groups else result
+
+
+def detect_claps(x, fs, *, reduce_rumble=True):
+    """Detecta dos eventos y reduce graves previos solo con evidencia concordante.
+
+    La limpieza es local y en memoria: nunca escribe ni recorta el audio. No
+    conoce nombres, distancias, temperatura, velocidad esperada ni marcas humanas.
+    Los eventos ambiguos siguen rechazándose; no elige los dos más fuertes.
+    """
+    raw, groups = _detect_claps_without_cleanup(x, fs, return_groups=True)
+    if not reduce_rumble or fs < 8000:
+        return raw
+    x = np.asarray(x, dtype=float)
+    window = max(3, round(.001*fs))
+
+    def envelope(signal):
+        return np.sqrt(np.maximum(uniform_filter1d(signal*signal, window), 0))
+
+    high = [sosfiltfilt(butter(4, cutoff, btype='highpass', fs=fs, output='sos'), x)
+            for cutoff in (1000, 2000)]
+    high_envelopes = [envelope(signal) for signal in high]
+    filtered = {cutoff: sosfiltfilt(butter(4, cutoff, btype='highpass', fs=fs, output='sos'), x)
+                for cutoff in (100, 150, 250)}
+    regions = []
+    for index, indices in enumerate(groups):
+        start, end = int(indices[0]), int(indices[-1])
+        try:
+            anchors = [_onset_markers(env, fs, start, end, peak_fraction=.10)
+                       for env in high_envelopes]
+        except ValueError:
+            continue
+        # Una subida gradual de pocos ms no basta para declarar ruido.
+        # Exigimos separación de 12 ms, acuerdo entre bandas y predominio grave.
+        if abs(anchors[0][1]-anchors[1][1]) > .003:
+            continue
+        anchor = min(min(marks) for marks in anchors)
+        early = min(raw['marcas_por_umbral'][index])
+        if anchor-early < .012:
+            continue
+        a, b = max(0, round((early-.001)*fs)), min(len(x), round((early+.001)*fs))
+        ratio = float(np.sum(filtered[150][a:b]**2)/max(float(np.sum(x[a:b]**2)), 1e-20))
+        if ratio > .25:
+            continue
+        lo, hi = max(.003, early-.010), anchor-.004
+        if lo >= hi:
+            continue
+        regions.append(dict(aplauso=index+1, inicio_s=lo, fin_s=hi,
+                            referencia_aguda_s=anchor, fraccion_energia_sobre_150Hz=ratio))
+    if not regions:
+        return raw
+
+    time = np.arange(len(x))/fs
+    variants, central, central_signal = [], None, None
+    for cutoff in (100, 150, 250):
+        for end_shift in (-.001, 0., .001):
+            processed = x.copy()
+            for region in regions:
+                lo, hi, fade = region['inicio_s'], region['fin_s']+end_shift, .001
+                weight = ((time >= lo) & (time <= hi)).astype(float)
+                left, right = (time > lo-fade) & (time < lo), (time > hi) & (time < hi+fade)
+                weight[left] = .5-.5*np.cos(np.pi*(time[left]-lo+fade)/fade)
+                weight[right] = .5+.5*np.cos(np.pi*(time[right]-hi)/fade)
+                processed += weight*(filtered[cutoff]-x)
+            env = envelope(processed)
+            try:
+                marks = [_onset_markers(env, fs, int(g[0]), int(g[-1])) for g in groups]
+            except ValueError:
+                return dict(raw, avisos=raw['avisos']+[
+                    'La reducción automática de graves no fue estable; se conservaron las marcas originales.'])
+            variants.append(dict(corte_hz=cutoff, variacion_fin_s=end_shift, marcas=marks))
+            if cutoff == 150 and end_shift == 0:
+                central, central_signal = marks, processed
+    # El inicio publicado y la ventana RMS a su alrededor deben quedar intactos.
+    for marker in (marks[1] for marks in central):
+        a, b = max(0, round(marker*fs)-window), min(len(x), round(marker*fs)+window+1)
+        if not np.array_equal(central_signal[a:b], x[a:b]):
+            return dict(raw, avisos=raw['avisos']+[
+                'La limpieza automática alcanzaría el inicio del sonido; se conservaron las marcas originales.'])
+    candidates = [[mark for variant in variants for mark in variant['marcas'][index]] for index in range(2)]
+    times = [marks[1] for marks in central]
+    if times[1]-times[0] < .25:
+        return raw
+    interval_min = min(candidates[1])-max(candidates[0])
+    interval_max = max(candidates[1])-min(candidates[0])
+    notices = [notice.replace('Los inicios se midieron en la señal original;',
+                             'Los eventos se localizaron antes de la reducción local de graves;')
+               for notice in raw['avisos']]
+    notices.append('Reducción automática local de graves antes del aplauso; sensibilidad evaluada '
+                   'con 100, 150 y 250 Hz y límites de ventana ±1 ms. Revisá la selección provisional.')
+    return dict(raw, tiempos=times, intervalo=times[1]-times[0],
+                marcas_por_umbral=central, marcas_sensibilidad=candidates,
+                marcas_antes_procesamiento=raw['marcas_por_umbral'],
+                sensibilidad_s=float(interval_max-interval_min),
+                intervalo_min_s=interval_min, intervalo_max_s=interval_max,
+                seleccion=raw['seleccion'].replace('inicio en audio original', 'inicio tras reducción local de graves'),
+                procesamiento_automatico=dict(metodo='graves previos; consenso de bandas',
+                    corte_hz=150, fundido_s=.001, regiones=regions, variantes=variants,
+                    muestras_del_inicio_conservadas=True), avisos=notices)
 
 
 def measure_audio(x, fs, markers=None):
@@ -148,7 +249,7 @@ def measure_audio(x, fs, markers=None):
     try:
         automatic = detect_claps(x, fs)
         if np.max(np.abs(np.array(automatic['tiempos'])-[t1, t2])) <= 1/fs:
-            analysis_result['referencia_umbral_manual'] = automatic['marcas_por_umbral']
+            analysis_result['referencia_umbral_manual'] = automatic.get('marcas_sensibilidad', automatic['marcas_por_umbral'])
     except ValueError:
         pass
     return analysis_result
@@ -208,7 +309,7 @@ def plot_pair(recordings, detections, path, heading=None):
         ax = axes[0, c]
         step = max(1, len(x)//50000)
         ax.plot(t[::step], x[::step], lw=.5, color='#176e80')
-        ax.set(title=f'Celular {side.upper()} · grabación completa', xlabel='Tiempo de su archivo (s)')
+        ax.set(title=f'Micrófono {side.upper()} · grabación completa', xlabel='Tiempo de su archivo (s)')
         markers = detections.get(side, {}).get('tiempos', [])
         for k in range(2):
             zoom = axes[k+1, c]
@@ -222,6 +323,16 @@ def plot_pair(recordings, detections, path, heading=None):
             zoom.axvline(marker, color='#c24e29')
             zoom.set(title=f'Aplauso {k+1}: {marker:.6f} s', xlabel='Tiempo de su archivo (s)')
             zoom.grid(alpha=.2)
+        for region in detections.get(side, {}).get('procesamiento_automatico', {}).get('regiones', []):
+            for panel in axes[:, c]:
+                limits = panel.get_xlim()
+                panel.axvspan(region['inicio_s']-.001, region['fin_s']+.001,
+                              color='#e5ab3b', alpha=.18)
+                panel.set_xlim(limits)
+        if detections.get(side, {}).get('procesamiento_automatico'):
+            ax.text(.01, .98, 'Amarillo: reducción local de graves en memoria. Se muestra la señal de entrada.',
+                    transform=ax.transAxes, va='top', fontsize=6.5,
+                    bbox=dict(facecolor='white', alpha=.85, edgecolor='none'))
     fig.suptitle(heading or 'Una medición: dos audios completos y ampliaciones de sus dos aplausos')
     fig.tight_layout()
     fig.savefig(path, dpi=135)
@@ -273,7 +384,7 @@ def analyze_pairs(entries, output, temperature=None, progress=None, uncertainty_
             try:
                 analysis_result = calculate_pair(e['distancia_m'], detections['a'], detections['b'])
                 row.update(analysis_result)
-                row['estado'] = 'Provisional'
+                row['estado'] = 'Procesado'
                 for side, det in detections.items():
                     row['avisos'].extend(f'{side.upper()}: {notice}' for notice in det.get('avisos', []))
                 if analysis_result['sensibilidad_s'] is None:
@@ -319,7 +430,7 @@ def analyze_pairs(entries, output, temperature=None, progress=None, uncertainty_
             ax.plot(xx, (fit_result.m*xx+fit_result.b)*1000, color='#e87919', label='Recta de mínimos cuadrados')
             ax.grid(alpha=.18)
             ax.legend(loc='upper left', fontsize=9)
-            ax.set(xlabel='Separación entre celulares (m)', ylabel='TA − TB (ms)',
+            ax.set(xlabel='Separación entre micrófonos (m)', ylabel='TA − TB (ms)',
                    title='Ajuste provisional · todas las mediciones calculadas')
             fig.text(.5, .025, f'TA−TB (ms) = {fit_result.m*1000:.4f} × d (m) {fit_result.b*1000:+.4f}    |    '
                      f'v = 2 / {fit_result.m:.8f} s/m = {fit_result.speed:.1f} m/s', ha='center', fontsize=10)

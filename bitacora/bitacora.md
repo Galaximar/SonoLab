@@ -84,3 +84,24 @@ Con ese cambio se pueden calcular todos los pares de mediciones sin ingresar mar
 ## 19 de septiembre de 2026 · Conclusión
 
 El cálculo podría mejorarse si se aumenta la distancia entre los teléfonos ya que errores como ubicación del aplauso o detector serían proporcionalmente menores.
+
+## 12 de octubre de 2026 · Registro de nuevas pruebas a 16 °C
+
+Registro una nueva serie de mediciones con los dos celulares y dos aplausos, esta vez a **16 °C**. La primera versión se había realizado a **20 °C**.
+
+Para explorar el efecto de la posición del aplauso, hago dos modalidades en cada distancia:
+
+- **Normal:** el aplauso a la separación usual del teléfono, aproximadamente **30–40 cm**, principalmente hacia arriba respecto del micrófono.
+- **Cerca:** el aplauso más próximo al teléfono. No quedó registrada una separación exacta para esta modalidad.
+
+Las nuevas separaciones entre teléfonos son **3, 4, 5, 6, 7 y 8 m**: seis pares de audios para normal y seis para cerca. El número del archivo indica esa distancia. Los archivos se organizan actualmente en `audios/2_40cm` y `audios/3_proximo`, cada una con subcarpetas `A` y `B`. Posteriormente se retiró el par de 3 m de la segunda tanda a unos 40 cm de las sesiones activas; el registro y los resultados de esta entrada corresponden a la serie original de seis pares.
+
+Con los audios actualmente incluidos y el procesamiento documentado en las sesiones, el ajuste normal da **303,4 ± 22,6 m/s** y el ajuste cerca **344,4 ± 32,1 m/s**. La referencia a 16 °C es **341,0 m/s**. Algunas tomas incluyen tratamientos de ruido registrados en el JSON; estos resultados corresponden a esas versiones de los audios.
+
+El modelo geométrico para un aplauso desplazado principalmente hacia arriba sugiere un efecto pequeño sobre la pendiente cuando la altura se mantiene similar entre distancias, porque gran parte del cambio se absorbe en el intercepto. Esta comparación no alcanza para atribuir toda la diferencia entre normal y cerca a la posición del aplauso. Las sesiones nuevas mantienen excluido el antiguo aporte de altura; los otros aportes de incertidumbre siguen activos.
+
+Entre 16 y 20 °C la predicción cambia **2,424 m/s**, menos que los márgenes actuales. Queda registrada la comparación con la teoría, aunque estas series no permiten aislar con precisión el efecto de esos 4 °C.
+
+## 19 de octubre de 2026 · Modificaciones en la interfaz
+
+Se agregan a la interfaz el resaltado de la toma seleccionada sobre el ajuste ΔT frente a distancia y la curva de velocidad teórica frente a temperatura. El análisis de posición, sus supuestos y la comparación térmica quedan desarrollados al final del [README](../README.md#13-pruebas-de-posición-del-aplauso-y-temperatura--registro-del-19-de-octubre-de-2026).

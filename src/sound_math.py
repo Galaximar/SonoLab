@@ -103,7 +103,7 @@ def linear_fit(
     Un sesgo aditivo CONSTANTE en dt puede representarse con b. No se supone
     que todo error experimental sea constante: sesgos de inicio que cambian
     con distancia/intensidad tambien pueden alterar la pendiente. En el metodo
-    de dos telefonos, una latencia fija de cada grabador se cancela al restar
+    de dos micrófonos, una latencia fija de cada grabador se cancela al restar
     los dos instantes dentro de su propio archivo; no debe atribuirse a b.
 
     Por eso la ordenada al origen se reporta pero no se fuerza a cero: un |b|

@@ -9,36 +9,56 @@ from audio_io import parse_number
 
 
 EXPERIMENT_CONFIG = dict(resolucion_distancia_m=.001, altura_min_m=.38, altura_max_m=.44,
-                         margen_sillas_m=.03, sillas_fijas=True)
+                         margen_sillas_m=.03, sillas_fijas=True, incluir_altura=True)
 
 
 def validate_config(config):
-    c = {k: parse_number(config.get(k, default), k) for k, default in EXPERIMENT_CONFIG.items() if k != 'sillas_fijas'}
-    c['sillas_fijas'] = config.get('sillas_fijas', True)
-    if not isinstance(c['sillas_fijas'], bool):
-        raise ValueError('Indicá si la posición de los teléfonos en las sillas fue fija.')
+    if not isinstance(config, dict):
+        raise ValueError('La configuración de incertidumbre debe ser un objeto. Para excluir solo la altura, usá incluir_altura: false.')
+    flags = ('sillas_fijas', 'incluir_altura')
+    c = {k: parse_number(config.get(k, default), k) for k, default in EXPERIMENT_CONFIG.items() if k not in flags}
+    for key in flags:
+        c[key] = config.get(key, EXPERIMENT_CONFIG[key])
+        if not isinstance(c[key], bool):
+            raise ValueError(f'{key}: indicá true o false.')
     if c['resolucion_distancia_m'] <= 0 or c['margen_sillas_m'] < 0 or not 0 <= c['altura_min_m'] <= c['altura_max_m']:
         raise ValueError('Graduación de cinta positiva y alturas ordenadas, mayores o iguales a cero.')
     return c
 
 
+def describe_height(config):
+    if not config.get('incluir_altura', True):
+        return 'Altura de manos: aporte excluido del presupuesto; no se supone una altura medida de cero.'
+    return f"Altura de manos: {100*config['altura_min_m']:g}–{100*config['altura_max_m']:g} cm sobre el micrófono."
+
+
 def uncertainty_budget(r, config):
     c = validate_config(config)
+    include_height = c['incluir_altura']
     analysis_result = dict(config=c, incertidumbre_total=None,
         estado='Cálculo del margen combinado estimado para el ±',
         supuestos=[
             'Cinta: lectura redondeada a la graduación indicada más cercana; distribución uniforme dentro de media división. No incluye calibración, alineación ni colocación.',
-            'Manos: verticalmente encima de su micrófono; teléfonos a la misma altura. Altura uniforme dentro del rango indicado. Se supone igual en ambos extremos de cada ensayo y variable entre separaciones.',
+            ('Manos: verticalmente encima de su micrófono; micrófonos a la misma altura. Altura uniforme dentro del rango indicado. Se supone igual en ambos extremos de cada ensayo y variable entre separaciones.'
+             if include_height else 'Se excluyen la variación de altura de manos y el desplazamiento geométrico asociado. Se propagan las demás fuentes usando directamente la separación entre micrófonos; esto no equivale a medir una altura de cero.'),
             'Detección: cada inicio varía independientemente dentro de un margen simétrico que contiene los candidatos de umbral 0,75–1,5. Modelo exploratorio, sin calibración de exactitud.',
-            'Errores de diferentes separaciones independientes. La altura y la lectura de distancia se consideran comunes a las repeticiones de una separación.',
-            'Sillas: margen indicado para la separación TOTAL entre micrófonos, no por teléfono; distribución uniforme. Posiciones fijas: un desplazamiento común a todas las distancias; si se acomodaron: desplazamientos independientes.',
+            ('Errores de diferentes separaciones independientes. La altura y la lectura de distancia se consideran comunes a las repeticiones de una separación.'
+             if include_height else 'Errores de diferentes separaciones independientes. La lectura de distancia se considera común a las repeticiones de una separación.'),
+            'Sillas: margen indicado para la separación TOTAL entre micrófonos, no por micrófono; distribución uniforme. Posiciones fijas: un desplazamiento común a todas las distancias; si se acomodaron: desplazamientos independientes.',
             'Se añade solo la dispersión residual no explicada por las entradas (estimación por momentos). No se suma dos veces la misma variabilidad.',
-            'Se conserva la velocidad del ajuste sin corregir. El ± es la raíz del error cuadrático medio modelado: combina varianza propagada y el cuadrado del desplazamiento geométrico no aplicado. No es una incertidumbre estándar centrada ni tiene cobertura fija.'],
-        pendientes=['Sesgo absoluto al detectar el mismo frente en ambos teléfonos.',
-                    'Diferencia de velocidad de los relojes y procesamiento de cada teléfono.',
+            ('Se conserva la velocidad del ajuste sin corregir. El ± es la raíz del error cuadrático medio modelado: combina varianza propagada y el cuadrado del desplazamiento geométrico no aplicado. No es una incertidumbre estándar centrada ni tiene cobertura fija.'
+             if include_height else 'Se conserva la velocidad del ajuste. El ± combina cinta, detección, posición de los micrófonos y dispersión residual adicional no explicada; no tiene cobertura fija.')],
+        pendientes=['Sesgo absoluto al detectar el mismo frente en ambos micrófonos.',
+                    'Diferencias entre los relojes y el procesamiento de los equipos de grabación.',
                     'Calibración y colocación de la cinta; desplazamiento horizontal de manos y diferencia de altura entre micrófonos.',
                     'Correlaciones entre errores, ecos o saturación no cubiertos por variar el umbral.'])
     fit_result = r.get('ajuste')
+    if any(det.get('marcas_sensibilidad') for row in r.get('filas', [])
+           for det in row.get('detecciones', {}).values()):
+        analysis_result['supuestos'].append(
+            'Cuando hay reducción automática de graves, el margen de detección también abarca '
+            '100, 150 y 250 Hz y variaciones de ±1 ms del límite de limpieza; no solo el umbral. '
+            'Es una sensibilidad exploratoria, no una calibración del sesgo de procesamiento.')
     if not fit_result:
         analysis_result['detalle'] = 'Se necesita un ajuste válido para propagar las fuentes hasta la velocidad.'
         return analysis_result
@@ -46,8 +66,10 @@ def uncertainty_budget(r, config):
     d = np.array([g['distancia_m'] for g in groups])
     y = np.array([g['delta_t_medio'] for g in groups])
     sem = np.array([g['delta_t_sem'] for g in groups], dtype=float) if fit_result['ponderado'] else None
-    h = (c['altura_min_m']+c['altura_max_m'])/2
-    uh = (c['altura_max_m']-c['altura_min_m'])/np.sqrt(12)
+    # h=0 es solo la forma algebraica de q=d al excluir esta fuente; no es
+    # una afirmación sobre la posición real de las manos en las grabaciones.
+    h = (c['altura_min_m']+c['altura_max_m'])/2 if include_height else 0.
+    uh = (c['altura_max_m']-c['altura_min_m'])/np.sqrt(12) if include_height else 0.
     ud = c['resolucion_distancia_m']/np.sqrt(12)
     us = c['margen_sillas_m']/np.sqrt(3)
     q = np.hypot(d, h)-h
@@ -78,7 +100,7 @@ def uncertainty_budget(r, config):
             variance = 0.
             for side in ('a', 'b'):
                 det = f['detecciones'][side]
-                candidates = det.get('marcas_por_umbral') or det.get('referencia_umbral_manual')
+                candidates = det.get('marcas_sensibilidad') or det.get('marcas_por_umbral') or det.get('referencia_umbral_manual')
                 if not candidates:
                     missing.append(f"{f['nombre']} · {side.upper()}: sin candidatos de inicio")
                     variance = np.nan
@@ -92,7 +114,7 @@ def uncertainty_budget(r, config):
     u_detection = float(np.linalg.norm(dv_dy*u_t)) if np.all(np.isfinite(u_t)) else None
     combined = float(np.sqrt(u_tape**2+u_hands**2+u_detection**2+u_chairs**2)) if u_detection is not None else None
     additional, margin, tau2 = None, None, None
-    offset = ref.speed-fit_result['velocidad']
+    offset = ref.speed-fit_result['velocidad'] if include_height else 0.
     if combined is not None:
         cov_q = np.diag((dq_dd*ud)**2+(dq_dh*uh)**2)+chair_covariance
         cov_y = np.diag(u_t**2)+ref.m**2*cov_q
@@ -109,7 +131,8 @@ def uncertainty_budget(r, config):
         additional = float(np.linalg.norm(dv_dy)*np.sqrt(tau2))
         margin = float(np.sqrt(combined**2+additional**2+offset**2))
     analysis_result.update(velocidad_publicada=fit_result['velocidad'], sigma_recta=fit_result['sigma_velocidad'],
-        escenario_geometrico=dict(altura_central_m=h, velocidad=ref.speed, b_s=ref.b,
+        escenario_geometrico=dict(incluido=include_height,
+            altura_central_m=h if include_height else None, velocidad=ref.speed, b_s=ref.b,
             cambio_respecto_publicado=offset, aplicado_al_resultado=False),
         u_lectura_distancia_m=float(ud), margen_redondeo_m=c['resolucion_distancia_m']/2,
         u_altura_m=float(uh), u_sillas_m=float(us),
@@ -124,18 +147,21 @@ def explain_uncertainty(p):
     if not p:
         return 'No hay configuración de incertidumbre para esta sesión.'
     c = p['config']
+    include_height = c.get('incluir_altura', True)
     text = [p['estado'], '',
         f"Cinta: divisiones de {c['resolucion_distancia_m']*100:g} cm.",
-        f"Manos: rango {c['altura_min_m']*100:g}–{c['altura_max_m']*100:g} cm sobre el micrófono.", '']
+        describe_height(c), '']
     text += [f"Sillas: ±{c['margen_sillas_m']*100:g} cm en la separación total; "
               + ('desplazamiento común (posiciones fijas).' if c['sillas_fijas'] else 'variación independiente entre mediciones.'), '']
     if 'contribuciones_m_s' in p:
         text += [f"Redondeo de lectura: ±{p['margen_redondeo_m']*100:g} cm; incertidumbre estándar {p['u_lectura_distancia_m']*100:.3f} cm.", '',
                   'APORTES A LA VELOCIDAD (incertidumbres estándar según los supuestos)']
         for k, v in p['contribuciones_m_s'].items():
+            if k == 'manos' and not include_height:
+                continue
             text.append(f"{k.capitalize()}: {v:.2f} m/s" if v is not None else f'{k.capitalize()}: no evaluada en todas las marcas')
         combined = p['u_entradas_modeladas_m_s']
-        text += ['', f"Combinación de las cuatro fuentes: {combined:.2f} m/s." if combined is not None
+        text += ['', f"Combinación de las fuentes incluidas: {combined:.2f} m/s." if combined is not None
                   else 'Combinación incompleta: faltan datos de detección.',
                   f"Error estadístico de la recta publicada: {p['sigma_recta']:.2f} m/s, informado aparte. No se suma automáticamente.", '']
         margin = p.get('margen_error_estimado_m_s')
@@ -143,17 +169,20 @@ def explain_uncertainty(p):
             text += ['EL ± MOSTRADO JUNTO A LA VELOCIDAD',
                 f"{p['velocidad_publicada']:.2f} ± {margin:.2f} m/s (margen combinado estimado, RMS)",
                 f"Dispersión residual adicional no explicada: {p['u_residual_adicional_m_s']:.2f} m/s.",
-                'Margen = √(u_cinta² + u_manos² + u_detección² + u_sillas² + u_residual_adicional² + desplazamiento_geométrico²).',
+                ('Margen = √(u_cinta² + u_manos² + u_detección² + u_sillas² + u_residual_adicional² + desplazamiento_geométrico²).'
+                 if include_height else 'Margen = √(u_cinta² + u_detección² + u_sillas² + u_residual_adicional²).'),
                 'La parte fija de la distancia se absorbe en gran medida en b; no se trata como seis errores independientes. '
-                'El margen incluye el desplazamiento geométrico modelado sin cambiar el valor central. '
-                'RMS significa raíz del error cuadrático medio estimado. No asegura cubrir todos los errores.', '']
+                + ('El margen incluye el desplazamiento geométrico modelado sin cambiar el valor central. '
+                   if include_height else 'El aporte por altura está excluido; los otros aportes siguen activos. ')
+                + 'RMS significa raíz del error cuadrático medio estimado. No asegura cubrir todos los errores.', '']
         geo = p['escenario_geometrico']
-        text += ['EFECTO SISTEMÁTICO DE LA GEOMETRÍA',
-            f"Escenario con manos a {geo['altura_central_m']*100:g} cm: ajuste {geo['velocidad']:.2f} m/s "
-            f"(cambio {geo['cambio_respecto_publicado']:+.2f} m/s respecto del publicado).",
-            'Es un escenario para evaluar el error: NO reemplaza el ajuste principal. Los aportes anteriores se propagan en este modelo geométrico.', '',
-            'La variación de las manos no es lo mismo que el desplazamiento por su altura media. '
-            'La sensibilidad al umbral no garantiza detectar el instante físico exacto.', '']
+        if include_height:
+            text += ['EFECTO SISTEMÁTICO DE LA GEOMETRÍA',
+                f"Escenario con manos a {geo['altura_central_m']*100:g} cm: ajuste {geo['velocidad']:.2f} m/s "
+                f"(cambio {geo['cambio_respecto_publicado']:+.2f} m/s respecto del publicado).",
+                'Es un escenario para evaluar el error: NO reemplaza el ajuste principal. Los aportes anteriores se propagan en este modelo geométrico.', '',
+                'La variación de las manos no es lo mismo que el desplazamiento por su altura media.', '']
+        text += ['La sensibilidad al umbral no garantiza detectar el instante físico exacto.', '']
     else:
         text += [p.get('detalle', ''), '']
     if p.get('deteccion_faltante'):
@@ -161,7 +190,8 @@ def explain_uncertainty(p):
     text += ['SUPUESTOS', *p['supuestos'], '', 'FUENTES TODAVÍA SIN CUANTIFICAR', *p['pendientes'], '',
               'Método: propagación de incertidumbres (NIST TN 1297). Para un intervalo uniforme, u = semiancho/√3. '
               'La propagación incluye la covarianza del desplazamiento común de las sillas. '
-              'La raíz del error cuadrático medio (RMS) añade el sesgo modelado no corregido; es un criterio de margen estimado, no un intervalo de cobertura NIST.',
+              + ('La raíz del error cuadrático medio (RMS) añade el sesgo modelado no corregido; es un criterio de margen estimado, no un intervalo de cobertura NIST.'
+               if include_height else 'El margen combina las fuentes incluidas; no es un intervalo con cobertura fija ni incluye el efecto geométrico de la altura.'),
               'Referencia: https://www.nist.gov/pml/nist-technical-note-1297/nist-tn-1297-5-combined-standard-uncertainty']
     return '\n'.join(text)
 

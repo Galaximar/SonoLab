@@ -3,33 +3,33 @@
   "tipo": "dos_aplausos",
   "entradas": [
     {
-      "archivo_a": "audios/A/3A.mp4",
-      "archivo_b": "audios/B/3m2.m4a.mp4",
+      "archivo_a": "audios/1_40cm/A/3A.mp4",
+      "archivo_b": "audios/1_40cm/B/3m2.m4a.mp4",
       "distancia_m": 3.0
     },
     {
-      "archivo_a": "audios/A/4A.mp4",
-      "archivo_b": "audios/B/4m2.m4a.mp4",
+      "archivo_a": "audios/1_40cm/A/4A.mp4",
+      "archivo_b": "audios/1_40cm/B/4m2.m4a.mp4",
       "distancia_m": 4.0
     },
     {
-      "archivo_a": "audios/A/5A.mp4",
-      "archivo_b": "audios/B/5m2.m4a.mp4",
+      "archivo_a": "audios/1_40cm/A/5A.mp4",
+      "archivo_b": "audios/1_40cm/B/5m2.m4a.mp4",
       "distancia_m": 5.0
     },
     {
-      "archivo_a": "audios/A/6A.mp4",
-      "archivo_b": "audios/B/6m2.m4a.mp4",
+      "archivo_a": "audios/1_40cm/A/6A.mp4",
+      "archivo_b": "audios/1_40cm/B/6m2.m4a.mp4",
       "distancia_m": 6.0
     },
     {
-      "archivo_a": "audios/A/7A.mp4",
-      "archivo_b": "audios/B/7m2.m4a.mp4",
+      "archivo_a": "audios/1_40cm/A/7A.mp4",
+      "archivo_b": "audios/1_40cm/B/7m2.m4a.mp4",
       "distancia_m": 7.0
     },
     {
-      "archivo_a": "audios/A/8A.mp4",
-      "archivo_b": "audios/B/8m2.m4a.mp4",
+      "archivo_a": "audios/1_40cm/A/8A.mp4",
+      "archivo_b": "audios/1_40cm/B/8m2.m4a.mp4",
       "distancia_m": 7.8
     }
   ],

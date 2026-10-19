@@ -1,4 +1,4 @@
-"""Interfaz de SonoLab para dos celulares y dos aplausos."""
+"""Interfaz de SonoLab para dos micrófonos y dos aplausos."""
 from pathlib import Path
 from datetime import datetime
 import json
@@ -7,19 +7,21 @@ import sys
 import threading
 import tkinter as tk
 from tkinter import ttk, filedialog, messagebox, simpledialog
-from PIL import Image, ImageTk
+from matplotlib.backends.backend_tkagg import NavigationToolbar2Tk
 
 from app import BaseWindow
 from audio_io import parse_number
+from demonstration import FitPlot, TemperaturePlot
+from help_guide import HelpGuide
 from two_claps import analyze_pairs, validate_entries
-from uncertainty import EXPERIMENT_CONFIG, validate_config, explain_uncertainty, format_speed
+from uncertainty import EXPERIMENT_CONFIG, validate_config, explain_uncertainty, format_speed, describe_height
 
 
 class PairDialog(simpledialog.Dialog):
     def __init__(self, parent, entry=None, detections=None):
         self.entry = entry or {}
         self.detections = detections or {}
-        super().__init__(parent, 'Medición · dos celulares y dos aplausos')
+        super().__init__(parent, 'Medición · dos micrófonos y dos aplausos')
 
     def body(self, master):
         self.fields = {}
@@ -53,7 +55,7 @@ class PairDialog(simpledialog.Dialog):
                       row=7, column=0, columnspan=3, sticky='w', pady=(12, 0))
 
     def choose_audio(self, var):
-        path = filedialog.askopenfilename(parent=self, title='Elegir audio del celular', filetypes=[
+        path = filedialog.askopenfilename(parent=self, title='Elegir audio del micrófono', filetypes=[
             ('Audio y video', '*.wav *.mp4 *.m4a *.mpeg *.mp3 *.aac *.flac *.ogg *.opus *.webm *.mov'),
             ('Todos', '*.*')])
         if path:
@@ -89,7 +91,7 @@ class SonoLabApp(BaseWindow):
     def build_widgets(self):
         super().build_widgets()
         self.uncertainty_config = dict(EXPERIMENT_CONFIG)
-        self.title('SonoLab · Dos aplausos / dos celulares')
+        self.title('SonoLab · Velocidad del sonido / dos micrófonos')
         self.add.configure(text='+ Agregar par A/B')
         self.edit.configure(text='Editar / revisar marcas')
         self.go.configure(text='Analizar pares')
@@ -101,14 +103,13 @@ class SonoLabApp(BaseWindow):
             self.table.heading(key, text=heading)
             self.table.column(key, width=width, anchor='w' if key in ('a', 'b', 'estado') else 'center')
         self.table.bind('<Double-1>', lambda e: self.edit_pair())
-        self.status.set('Agregá dos audios del mismo ensayo y la separación entre celulares.')
+        self.status.set('Agregá dos audios del mismo ensayo y la separación entre micrófonos.')
         self.notice.set('A está junto al primer aplauso y B junto al segundo. Cada archivo debe contener ambos aplausos.')
         self.detail.set('Después del análisis, revisá los cuatro inicios y sus ampliaciones.')
         self.tabs.tab(0, text='Audios A y B · marcas')
         self.fit_panel = ttk.Frame(self.tabs)
         self.tabs.insert(1, self.fit_panel, text='Ajuste lineal · puntos y recta')
-        self.fit_image = None
-        self.fit_photo = None
+        self.expanded_fit_window = None
         header = ttk.Frame(self.fit_panel)
         header.pack(fill='x', padx=8, pady=6)
         ttk.Label(header, text='Cómo se obtiene la velocidad de la recta',
@@ -126,11 +127,12 @@ class SonoLabApp(BaseWindow):
         scroll = ttk.Scrollbar(explanation, command=self.fit_explanation.yview)
         scroll.pack(side='right', fill='y')
         self.fit_explanation.configure(yscrollcommand=scroll.set)
-        self.fit_canvas = tk.Canvas(content, bg='white', highlightthickness=0)
-        self.fit_canvas.pack(side='left', fill='both', expand=True)
-        self.fit_canvas.bind('<Configure>', lambda e: self.redraw_fit())
-        self.fit_canvas.bind('<Double-1>', lambda e: self.open_fit_plot())
+        self.fit_plot = FitPlot(content)
+        self.fit_plot.pack(side='left', fill='both', expand=True)
+        self.fit_plot.canvas.get_tk_widget().bind('<Double-1>', lambda e: self.open_fit_plot())
         self.update_fit_panel()
+        self.temperature_panel = TemperaturePlot(self.tabs)
+        self.tabs.insert(2, self.temperature_panel, text='Temperatura · referencia')
         self.uncertainty_panel = ttk.Frame(self.tabs)
         self.tabs.add(self.uncertainty_panel, text='Incertidumbre · fuentes de error')
         error_frame = ttk.Frame(self.uncertainty_panel)
@@ -150,19 +152,55 @@ class SonoLabApp(BaseWindow):
         for child in self.metrics[1].master.winfo_children():
             if isinstance(child, ttk.Label) and child is not self.metrics[1]:
                 child.configure(text='PARES CALCULADOS / TOTAL')
+        self.full_tab_titles = [self.tabs.tab(tab, 'text') for tab in self.tabs.tabs()]
+        self.compact_layout = None
+        self.narrow_tabs = None
+        self.bind('<Configure>', self.adapt_demo_layout, add='+')
+
+    def adapt_demo_layout(self, event):
+        if event.widget is not self:
+            return
+        compact = event.height < 800
+        if compact != self.compact_layout:
+            self.compact_layout = compact
+            if compact:
+                self.title_label.pack_forget()
+                self.subtitle_label.pack_forget()
+                self.progress_bar.pack_forget()
+            else:
+                self.title_label.pack(anchor='w', before=self.header_controls)
+                self.subtitle_label.pack(anchor='w', pady=(0, 16), before=self.header_controls)
+                self.progress_bar.pack(fill='x', pady=(0, 12), before=self.cards_frame)
+            self.table.configure(height=2 if compact else 4)
+        narrow = event.width < 1180
+        if narrow != self.narrow_tabs:
+            self.narrow_tabs = narrow
+            titles = ['Audios A/B · marcas', 'Ajuste lineal', 'Temperatura',
+                      'Resumen', 'Incertidumbre'] if narrow else self.full_tab_titles
+            for tab, title in zip(self.tabs.tabs(), titles):
+                self.tabs.tab(tab, text=title)
+        self.notice_label.configure(wraplength=max(400, event.width-60))
 
     def show_help(self):
-        messagebox.showinfo('Cómo medir con dos aplausos', HELP_TEXT, parent=self)
+        window = getattr(self, 'help_window', None)
+        if window is None or not window.winfo_exists():
+            self.help_window = HelpGuide(self)
+        self.help_window.deiconify()
+        self.help_window.lift()
+        self.help_window.focus_set()
 
     def update_uncertainty(self):
         p = (self.analysis_result or {}).get('presupuesto_incertidumbre')
         c = self.uncertainty_config
-        text = explain_uncertainty(p) if p else (
-            f"Graduación de cinta: {100*c['resolucion_distancia_m']:g} cm. "
-            f"Altura de manos: {100*c['altura_min_m']:g}–{100*c['altura_max_m']:g} cm.\n\n"
-            'Analizá los pares para evaluar estas fuentes. '
-            f"Sillas: ±{100*c['margen_sillas_m']:g} cm en la separación total. "
-            'El ± combinará las fuentes modeladas.')
+        if p:
+            text = explain_uncertainty(p)
+        else:
+            text = (
+                f"Graduación de cinta: {100*c['resolucion_distancia_m']:g} cm. "
+                + describe_height(c) + '\n\n'
+                + 'Analizá los pares para evaluar estas fuentes. '
+                f"Sillas: ±{100*c['margen_sillas_m']:g} cm en la separación total. "
+                'El ± combinará las fuentes modeladas.')
         self.uncertainty_text.configure(state='normal')
         self.uncertainty_text.delete('1.0', 'end')
         self.uncertainty_text.insert('1.0', text)
@@ -172,20 +210,20 @@ class SonoLabApp(BaseWindow):
     def update_fit_panel(self):
         r = self.analysis_result or {}
         fit_result = r.get('ajuste')
-        self.fit_image = None
-        if fit_result and r.get('grafico_ajuste'):
-            with Image.open(r['grafico_ajuste']) as img:
-                self.fit_image = img.copy()
-        self.expand_fit_button.configure(state='normal' if self.fit_image else 'disabled')
-        text = ('1. LOS PUNTOS\nHorizontal: distancia entre teléfonos. Vertical: TA−TB, '
+        self.fit_plot.set_result(r)
+        if self.expanded_fit_window and self.expanded_fit_window.winfo_exists():
+            self.expanded_fit_plot.set_result(r)
+        self.expand_fit_button.configure(state='normal' if r.get('grupos') else 'disabled')
+        text = ('1. LOS PUNTOS\nHorizontal: distancia entre micrófonos. Vertical: TA−TB, '
                  'la diferencia entre los intervalos de ambos audios, en milisegundos. '
-                 'Si hay varias tomas a una distancia, se usa su promedio.\n\n'
+                 'Si hay varias tomas a una distancia, se usa su promedio. '
+                 'El círculo naranja señala la toma individual seleccionada en la tabla.\n\n'
                  '2. LA RECTA\nEl ajuste lineal por mínimos cuadrados busca la recta que '
                  'mejor pasa entre los puntos: minimiza la suma de las separaciones '
                  'verticales al cuadrado. Si hay errores de las medias disponibles '
                  'para todas las distancias, los usa como pesos.\n\n')
         if fit_result:
-            text += (f"3. TU RESULTADO\nLa recta sube {fit_result['m']*1000:.4f} milisegundos por cada metro. "
+            text += (f"3. RESULTADO\nLa recta sube {fit_result['m']*1000:.4f} milisegundos por cada metro. "
                       'Esa inclinación se llama pendiente.\n\n'
                       f"TA−TB (ms) = {fit_result['m']*1000:.4f} × d (m) {fit_result['b']*1000:+.4f}\n\n"
                       'El método relaciona la pendiente con 2/v. Pasándola a segundos:\n'
@@ -196,7 +234,7 @@ class SonoLabApp(BaseWindow):
                       'AJUSTE PROVISIONAL · TODAS LAS MEDICIONES CALCULADAS\n'
                       f"{format_speed(fit_result)}\n"
                       'El margen ± combina las fuentes del experimento según los supuestos de la pestaña Incertidumbre. '
-                      'No tiene cobertura fija ni incluye sesgos desconocidos de los teléfonos.\n'
+                      'No tiene cobertura fija ni incluye sesgos desconocidos de los equipos de grabación.\n'
                       f"Error estadístico de la recta, por separado: {fit_result['sigma_velocidad']:.1f} m/s.")
         else:
             text += ('3. LA VELOCIDAD\nv = 2 / pendiente, usando segundos por metro.\n\n'
@@ -207,28 +245,38 @@ class SonoLabApp(BaseWindow):
         self.fit_explanation.insert('1.0', text)
         self.fit_explanation.configure(state='disabled')
         self.fit_explanation.yview_moveto(0)
-        self.redraw_fit()
+        self.highlight_fit_selection()
 
-    def redraw_fit(self):
-        self.fit_canvas.delete('all')
-        w, h = self.fit_canvas.winfo_width(), self.fit_canvas.winfo_height()
-        if self.fit_image:
-            img = self.fit_image.copy()
-            img.thumbnail((max(1, w-8), max(1, h-8)), Image.Resampling.LANCZOS)
-            self.fit_photo = ImageTk.PhotoImage(img)
-            self.fit_canvas.create_image(w/2, h/2, image=self.fit_photo)
-        else:
-            self.fit_photo = None
-            self.fit_canvas.create_text(w/2, h/2, width=max(100, w-30),
-                text='El gráfico aparecerá después de analizar al menos tres distancias.',
-                fill='#567083', font=('Segoe UI', 11))
+    def highlight_fit_selection(self):
+        row, number = None, None
+        selection = self.table.selection()
+        if self.analysis_result and selection:
+            iid = selection[0]
+            row = self.results_by_id.get(iid)
+            number = list(self.entries).index(iid)+1
+        self.fit_plot.set_selection(row, number)
+        if self.expanded_fit_window and self.expanded_fit_window.winfo_exists():
+            self.expanded_fit_plot.set_selection(row, number)
 
     def show_fit(self):
         self.tabs.select(self.fit_panel)
 
     def open_fit_plot(self):
-        if self.analysis_result and self.analysis_result.get('grafico_ajuste'):
-            os.startfile(self.analysis_result['grafico_ajuste'])
+        if not self.analysis_result or not self.analysis_result.get('grupos'):
+            return
+        if self.expanded_fit_window and self.expanded_fit_window.winfo_exists():
+            self.expanded_fit_window.lift()
+            return
+        self.expanded_fit_window = tk.Toplevel(self)
+        self.expanded_fit_window.title('SonoLab · Ajuste y medición seleccionada')
+        self.expanded_fit_window.geometry('1000x650')
+        self.expanded_fit_plot = FitPlot(self.expanded_fit_window)
+        toolbar = NavigationToolbar2Tk(self.expanded_fit_plot.canvas, self.expanded_fit_window,
+                                       pack_toolbar=False)
+        toolbar.pack(side='bottom', fill='x')
+        self.expanded_fit_plot.pack(fill='both', expand=True)
+        self.expanded_fit_plot.set_result(self.analysis_result)
+        self.highlight_fit_selection()
 
     def insert_pair(self, entry):
         self.counter += 1
@@ -239,6 +287,7 @@ class SonoLabApp(BaseWindow):
 
     def select_measurement(self, event=None):
         super().select_measurement(event)
+        self.highlight_fit_selection()
         if not self.analysis_result or not self.table.selection():
             return
         iid = self.table.selection()[0]
@@ -259,6 +308,7 @@ class SonoLabApp(BaseWindow):
     def invalidate_results(self):
         self.analysis_result = None
         self.update_fit_panel()
+        self.temperature_panel.set_result(None)
         self.update_uncertainty()
         self.original_image = None
         self.image_path = None
@@ -373,6 +423,7 @@ class SonoLabApp(BaseWindow):
             self.table.selection_set(next(iter(self.entries)))
             self.select_measurement()
         self.update_fit_panel()
+        self.temperature_panel.set_result(r)
         self.update_uncertainty()
         if fit_result:
             self.show_fit()
@@ -411,7 +462,8 @@ class SonoLabApp(BaseWindow):
             if data.get('tipo') != 'dos_aplausos':
                 raise ValueError('Esta sesión no es del método de dos aplausos. Las sesiones antiguas de eco usan un solo audio.')
             new_entries = validate_entries(data['entradas'], Path(path).resolve().parent) if data['entradas'] else []
-            uncertainty_config = validate_config(data.get('config_incertidumbre', EXPERIMENT_CONFIG))
+            config = data.get('config_incertidumbre', EXPERIMENT_CONFIG)
+            uncertainty_config = validate_config(config)
             for e in new_entries:
                 for key in ('archivo_a', 'archivo_b'):
                     if not Path(e[key]).is_file():
@@ -429,14 +481,15 @@ class SonoLabApp(BaseWindow):
             messagebox.showerror('No se pudo abrir la sesión', str(exc), parent=self)
 
 
-HELP_TEXT = '''Cada medición usa dos audios: uno de cada celular. Ambos deben grabar los mismos dos aplausos: primero cerca de A y después cerca de B.
+HELP_TEXT = '''Cada medición usa dos micrófonos separados y un audio por micrófono. Ambos deben registrar los mismos dos aplausos: primero cerca de A y después cerca de B.
 
-1. Cargá los audios con «Agregar par A/B» e indicá la separación entre los celulares.
+1. Cargá los audios con «Agregar par A/B» e indicá la separación entre los micrófonos.
 2. Pulsá «Analizar pares». El programa detecta los aplausos y calcula los tiempos y la velocidad.
 3. Seleccioná una fila para ver sus dos audios. Los gráficos inferiores amplían cada aplauso.
 4. Repetí en al menos tres distancias distintas para obtener la velocidad del ajuste y su margen ±.
 
-«Ajuste lineal»: muestra los puntos y la recta.
+«Ajuste lineal»: muestra los puntos y la recta; el círculo naranja sigue la fila seleccionada.
+«Temperatura»: permite explorar la velocidad teórica y comparar 16 y 20 °C sin cambiar el ajuste medido.
 «Incertidumbre»: explica cómo se calcula el ± y muestra los aportes de cada fuente de error.
 «Archivo»: permite guardar o abrir una sesión JSON.'''
 
@@ -459,12 +512,33 @@ def main():
             app.uncertainty_config = validate_config(config)
             for e in entries:
                 app.insert_pair(e)
-            r = analyze_pairs(entries, sys.argv[3], uncertainty_config=config)
+            temperature = data.get('temperatura') if isinstance(data, dict) else None
+            temperature = temperature if temperature is not None and str(temperature).strip() else None
+            if temperature is not None:
+                app.temp.insert(0, str(temperature))
+            r = analyze_pairs(entries, sys.argv[3], temperature=temperature,
+                              uncertainty_config=app.uncertainty_config)
             app.show_result(r)
             app.update()
             app.show_fit()
             app.update()
-            (Path(sys.argv[3])/'smoke-ok.txt').write_text('Dos aplausos: conversión, cálculo, exportación y ventana OK.', encoding='utf-8')
+            for iid, row in app.results_by_id.items():
+                app.table.selection_set(iid)
+                app.select_measurement()
+                if row['velocidad'] is not None:
+                    assert list(app.fit_plot.selection_artist.get_xdata()) == [row['distancia_m']]
+                    assert list(app.fit_plot.selection_artist.get_ydata()) == [row['delta_t_ms']]
+            app.tabs.select(app.temperature_panel)
+            app.temperature_panel.set_temperature(20)
+            app.update()
+            assert abs(app.temperature_panel.exploration_marker.get_ydata()[0]-343.42) < 1e-9
+            app.help_window = HelpGuide(app)
+            for index in range(len(app.help_window.navigation)):
+                app.help_window.show_page(index)
+                app.update()
+            app.help_window.destroy()
+            (Path(sys.argv[3])/'smoke-ok.txt').write_text(
+                'Dos aplausos: conversión, cálculo, exportación, selección en ajuste y curva térmica OK.', encoding='utf-8')
         finally:
             app.destroy()
         return
