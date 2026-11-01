@@ -410,7 +410,7 @@ class HelpGuide(tk.Toplevel):
         self._card('Encontrar tablas y gráficos exportados',
                    'Abre la carpeta del último análisis: contiene el resumen, los resultados por par, '
                    'el ajuste, las imágenes de las señales y el detalle de incertidumbre. '
-                   'Cada análisis crea su propia carpeta dentro de Documents/EcoLab, en la carpeta personal.',
+                   'Cada análisis crea su propia carpeta dentro de Documents/SonoLab, en la carpeta personal.',
                    'Abrir resultados')
         self._card('Llevar la sesión a otra computadora',
                    'Copiá el JSON y sus audios conservando la estructura de carpetas. Las rutas relativas '

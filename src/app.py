@@ -118,7 +118,7 @@ class BaseWindow(tk.Tk):
         self.tabs.add(summary, text='Resumen del experimento')
         self.text = tk.Text(summary, wrap='word', bg='white', fg=FOREGROUND, font=('Segoe UI', 11), relief='flat', padx=18, pady=14)
         self.text.pack(fill='both', expand=True)
-        self.text.insert('1.0', 'Los resultados se guardan automáticamente en Documentos/EcoLab, en una carpeta por análisis.\n\nSe conservan todos los originales. No es necesario renombrar los archivos.\n\nPodés guardar y abrir una sesión desde el menú Archivo.')
+        self.text.insert('1.0', 'Los resultados se guardan automáticamente en Documents/SonoLab, dentro de tu carpeta personal, en una carpeta por análisis.\n\nSe conservan todos los originales. No es necesario renombrar los archivos.\n\nPodés guardar y abrir una sesión desde el menú Archivo.')
         self.text.configure(state='disabled')
         self.view_fit_button = ttk.Button(summary, text='Ver gráfico del ajuste', command=self.show_fit, state='disabled')
         self.view_fit_button.pack(anchor='w', pady=5)

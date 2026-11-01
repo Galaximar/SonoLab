@@ -4,27 +4,63 @@ Aplicación de escritorio para estimar la velocidad del sonido con **dos micróf
 
 Este README reúne la documentación de uso, instalación, código y cálculos. La [bitácora](bitacora/bitacora.md) conserva el desarrollo del experimento, sus resultados y los problemas encontrados.
 
+## Índice
+
+**Manual de uso:** [1. Probar el ejecutable](#1-probar-el-ejecutable) · [4. Preparar y cargar una medición](#4-preparar-y-cargar-una-medición) · [10. Sesiones JSON](#10-sesiones-json) · [11. Archivos exportados](#11-archivos-exportados) · [12. Problemas habituales](#12-problemas-habituales).
+
+**Instalación y compilación:** [2. Iniciar desde el código](#2-iniciar-desde-el-código) · [3. Generar la distribución](#3-generar-la-distribución-dist).
+
+**Documentación técnica:** [5. Estructura del código](#5-estructura-del-código) · [6. Cómo se encuentran los aplausos](#6-cómo-se-encuentran-los-aplausos) · [7. Cálculo de la velocidad](#7-cálculo-de-la-velocidad) · [8. Error mostrado](#8-cómo-se-calcula-el-error-mostrado) · [9. Referencia por temperatura](#9-referencia-por-temperatura).
+
+**Experimento:** [bitácora, condiciones y conclusión final](bitacora/bitacora.md).
+
 Las grabaciones se organizan por tanda en `1_40cm`, `2_40cm` y `3_proximo`, con subcarpetas `A` y `B` para los dos micrófonos. `40cm` identifica los aplausos a una separación aproximada de 30–40 cm del micrófono; `proximo` identifica los aplausos más cercanos. Estas etiquetas no cambian la separación entre micrófonos ni agregan una corrección de altura. Las sesiones vigentes están en la raíz del proyecto.
 
 ## 1. Probar el ejecutable
 
-En Windows:
+### Descargar los ejecutables con Git LFS
+
+Los ejecutables de `dist/` están almacenados en **Git LFS**, como indica [.gitattributes](.gitattributes). El ZIP de código de GitHub puede contener pequeños archivos de texto que apuntan al ejecutable, en lugar del programa completo. No son ejecutables vacíos: son punteros LFS. La inclusión del binario en el ZIP depende de la configuración del repositorio; ver la [documentación de GitHub](https://docs.github.com/en/repositories/managing-your-repositorys-settings-and-features/managing-repository-settings/managing-git-lfs-objects-in-archives-of-your-repository).
+
+Con Git y Git LFS instalados, descargar el [repositorio de SonoLab](https://github.com/Galaximar/SonoLab):
+
+```bash
+git lfs install
+git clone https://github.com/Galaximar/SonoLab.git SonoLab
+cd SonoLab
+git lfs pull
+```
+
+Si ya se clonó el repositorio, ejecutar `git lfs pull` desde esa copia. Si se descargó el ZIP y el programa no abre, usar una copia clonada con LFS o seguir la sección 2 para ejecutarlo desde el código.
+
+### Windows
 
 1. Abrir [dist/SonoLab.exe](dist/SonoLab.exe).
 2. Ir a **Archivo → Abrir sesión** y elegir [sesion_primera_prueba_40cm.json](sesion_primera_prueba_40cm.json), [sesion_segunda_prueba_40cm.json](sesion_segunda_prueba_40cm.json) o [sesion_segunda_prueba_proximo.json](sesion_segunda_prueba_proximo.json), en la raíz del proyecto.
 3. Pulsar **Analizar pares**.
 
+### Linux
+
+Desde la raíz de la copia completa del proyecto, en una sesión de escritorio gráfico:
+
+```bash
+chmod +x dist/linux/SonoLab
+./dist/linux/SonoLab
+```
+
+Después, ir a **Archivo → Abrir sesión**, elegir uno de los tres JSON de la raíz y pulsar **Analizar pares**. Se necesita un sistema de arquitectura y bibliotecas compatibles con la compilación; ver la sección 3. Si se inicia desde otra carpeta, usar la ruta completa al ejecutable.
+
 El ejecutable incluye Python, las bibliotecas y FFmpeg. Para usarlo no hace falta instalarlos aparte.
 
 Las sesiones contienen los siguientes pares, sin marcas manuales:
 
-| Carpeta dentro de `audios` | Tanda | Temperatura | Separación entre micrófonos | Pares activos |
-| --- | --- | ---: | --- | ---: |
-| `1_40cm` | Primera | 20 °C | 3; 4; 5; 6; 7 y 7,8 m | 6 |
-| `2_40cm` | Segunda, aplausos a unos 40 cm | 16 °C | 4; 5; 6; 7 y 8 m | 5 |
-| `3_proximo` | Segunda, aplausos más próximos | 16 °C | 3; 4; 5; 6; 7 y 8 m | 6 |
+| Carpeta dentro de `audios` | Tanda                          | Temperatura | Separación entre micrófonos | Pares activos |
+| -------------------------- | ------------------------------ | ----------: | --------------------------- | ------------: |
+| `1_40cm`                   | Primera                        |       20 °C | 3; 4; 5; 6; 7 y 7,8 m       |             6 |
+| `2_40cm`                   | Segunda, aplausos a unos 40 cm |       16 °C | 4; 5; 6; 7 y 8 m            |             5 |
+| `3_proximo`                | Segunda, aplausos más próximos |       16 °C | 3; 4; 5; 6; 7 y 8 m         |             6 |
 
-El par de **3 m de `2_40cm`** está retirado de la selección activa y de la sesión combinada. Se conserva fuera de `audios`, en `resultados/reorganizacion_audios_20261019/retirados`, para mantener el registro. Los pares de 3 m de las otras dos tandas permanecen incluidos.
+El par de **3 m de `2_40cm`** está retirado de la selección activa. La [bitácora](bitacora/bitacora.md) registra el resultado anterior y el cambio de selección. Los pares de 3 m de las otras dos tandas permanecen incluidos.
 
 Las rutas de cada JSON son relativas a su propia ubicación. Para usarlas en otra computadora, copiar los JSON y la carpeta `audios` conservando esa estructura. `sesion_guardada.json` también apunta a la primera tanda con las rutas actualizadas.
 
@@ -64,10 +100,11 @@ ffmpeg -version
 Get-Command ffmpeg
 ```
 
-Si no se quiere modificar el `PATH` permanentemente, se puede agregar la carpeta de FFmpeg solo a esa terminal, sustituyendo la ruta por la real:
+Si no se quiere modificar el `PATH` permanentemente, se puede agregar la carpeta de FFmpeg solo a esa terminal. Ejecutar estos comandos e introducir la ruta de la carpeta que contiene `ffmpeg.exe`:
 
 ```powershell
-$env:PATH = 'C:\herramientas\ffmpeg\bin;' + $env:PATH
+$carpetaFFmpeg = Read-Host 'Carpeta que contiene ffmpeg.exe'
+$env:PATH = "$carpetaFFmpeg;$env:PATH"
 ```
 
 Iniciar SonoLab:
@@ -103,7 +140,7 @@ Iniciar SonoLab desde una sesión de escritorio gráfico:
 
 En otras distribuciones, instalar los paquetes equivalentes con su gestor de paquetes; los comandos del entorno virtual y de inicio son los mismos.
 
-El punto de entrada es **`paired_app.py`**. `app.py` contiene la ventana base y no se ejecuta como aplicación independiente.
+El punto de entrada es **`src/paired_app.py`**. `src/app.py` contiene la ventana base y no se ejecuta como aplicación independiente.
 
 ## 3. Generar la distribución `dist`
 
@@ -116,11 +153,11 @@ Desde la raíz del proyecto, con FFmpeg accesible en `PATH`:
 
 `requirements-build.txt` incluye las dependencias de ejecución y PyInstaller. El script [build_exe.py](build_exe.py):
 
-1. Busca `ffmpeg.exe` con `shutil.which`.
+1. Busca FFmpeg con `shutil.which`: `ffmpeg.exe` en Windows y `ffmpeg` en Linux.
 2. Ejecuta PyInstaller sobre `src/paired_app.py` con `--onefile` y `--windowed`.
 3. Incluye FFmpeg, Pillow y las dependencias detectadas.
 4. Trabaja en una carpeta temporal, que se elimina al terminar.
-5. Escribe **`dist/SonoLab.exe`**.
+5. Escribe **`dist/SonoLab.exe`** en Windows o **`dist/linux/SonoLab`** en Linux.
 
 Cerrar SonoLab antes de compilar para que Windows permita reemplazar el ejecutable. No hace falta crear una carpeta `build` en el proyecto.
 
@@ -136,7 +173,7 @@ El nombre admite letras, números, guion y guion bajo. La salida será `dist/MiS
 
 ### Compilar para Linux
 
-Ejecutable disponible: [dist/linux/SonoLab](dist/linux/SonoLab). Para usarlo en otra computadora, copiar ese archivo, los JSON de las sesiones y la carpeta `audios` con sus 34 archivos activos. Mantener los JSON junto a la carpeta `audios` para conservar las rutas relativas. Fue probado en Ubuntu 24.04 x86-64 con los 17 pares activos de las tres series. El registro de esta comprobación está en `resultados/reorganizacion_audios_20261019/verificacion_linux.json`.
+Ejecutable disponible mediante Git LFS: [dist/linux/SonoLab](dist/linux/SonoLab). Para usarlo en otra computadora, copiar ese archivo, los JSON de las sesiones y la carpeta `audios` con sus 34 archivos activos. Mantener los JSON junto a la carpeta `audios` para conservar las rutas relativas. El 31 de octubre de 2026 se reconstruyó y probó el ejecutable en Ubuntu 24.04 x86-64 bajo WSL2 con los **17 pares activos**. La comprobación del binario incluyó conversión con FFmpeg incorporado, cálculo, exportación, selección del ajuste, referencia térmica y las seis secciones de ayuda. También pasaron las 24 pruebas del código. Las pruebas de Linux usaron una pantalla virtual (Xvfb) bajo WSL2; no garantizan funcionamiento en cualquier escritorio Linux.
 
 El mismo script genera `dist/linux/SonoLab` al ejecutarse en Linux. La compilación para Windows genera un `.exe`; para Linux se necesita ejecutar PyInstaller dentro de Linux, por ejemplo mediante WSL. La compatibilidad depende también de la arquitectura y de la versión de glibc: una compilación hecha en Ubuntu 24.04 x86-64 no garantiza funcionar en distribuciones anteriores. [Documentación de PyInstaller](https://pyinstaller.org/en/stable/usage.html#supporting-multiple-operating-systems).
 
@@ -155,7 +192,19 @@ Las sesiones `sesion_primera_prueba_40cm.json`, `sesion_segunda_prueba_40cm.json
 
 ## 4. Preparar y cargar una medición
 
-1. Ubicar los micrófonos A y B en posiciones fijas y medir la separación entre micrófonos.
+### Recomendaciones para nuevas tomas
+
+- Usar ambos teléfonos con la misma app de grabación y la misma configuración: formato, frecuencia de muestreo y canales. Registrar modelos, app y versión, y cualquier procesamiento automático que pueda desactivarse.
+- Elegir un lugar despejado y de poco ruido; anotar el lugar y las superficies que puedan producir reflexiones. Mantener micrófonos libres y a alturas semejantes, sobre soportes firmes.
+- Cada persona debe pararse detrás de su teléfono, hacia el exterior del segmento A–B, sin tapar el camino del sonido hacia el otro micrófono. Medir la posición horizontal y vertical de las manos respecto de su micrófono y mantenerla entre ensayos.
+- Hacer varias tomas por distancia; por ejemplo, al menos cinco. Cada toma contiene dos aplausos y produce un par A/B. Definir antes de medir cómo se reconocerá una toma fallida y registrar todos los intentos.
+- Registrar fecha y temperatura del aire, instrumento o fuente utilizada, su resolución y dónde y cuándo se obtuvo la lectura. Una temperatura de una app meteorológica debe identificarse como tal.
+
+Estas recomendaciones sirven para futuras mediciones. Las condiciones de las mediciones realizadas están registradas en la [bitácora](bitacora/bitacora.md).
+
+### Procedimiento
+
+1. Ubicar los micrófonos A y B en posiciones fijas y medir la separación entre micrófonos con una cinta métrica.
 2. Registrar dónde quedan las manos respecto de los micrófonos.
 3. Iniciar ambas grabaciones; no hace falta hacerlo al mismo tiempo.
 4. Dar un aplauso junto a A y, después de una pausa clara, otro junto a B. La pausa puede ser de uno o dos segundos, sin necesidad de exactitud.
@@ -195,7 +244,7 @@ En **Temperatura · referencia**, el círculo azul marca la temperatura del últ
 ## 5. Estructura del código
 
 ```text
-Taller/
+SonoLab/
 ├── README.md
 ├── build_exe.py
 ├── requirements.txt
@@ -203,6 +252,7 @@ Taller/
 ├── src/
 │   ├── paired_app.py
 │   ├── app.py
+│   ├── desktop.py
 │   ├── demonstration.py
 │   ├── help_guide.py
 │   ├── two_claps.py
@@ -212,7 +262,12 @@ Taller/
 ├── sesion_primera_prueba_40cm.json
 ├── sesion_segunda_prueba_40cm.json
 ├── sesion_segunda_prueba_proximo.json
-├── sesion_segunda_version_completa.json
+├── sesion_guardada.json
+├── tests/
+│   ├── test_automatic_rumble.py
+│   ├── test_demonstration.py
+│   ├── test_platform_support.py
+│   └── test_uncertainty.py
 ├── audios/
 │   ├── 1_40cm/
 │   │   ├── A/
@@ -230,9 +285,12 @@ Taller/
 └── bitacora/
     ├── bitacora.md
     └── anexos/
+        └── croquis_montaje.svg
 ```
 
 Los audios se seleccionan desde cualquier carpeta; no se deducen sus distancias de los nombres.
+
+`SonoLab/` es el nombre de ejemplo para la carpeta de clonación, que se puede cambiar. [desktop.py](src/desktop.py) abre carpetas y gráficos con el visor del sistema en Windows y Linux.
 
 [help_guide.py](src/help_guide.py) contiene la ventana de ayuda, su navegación y sus ejemplos visuales. Los ejemplos de controles no ejecutan acciones sobre la sesión.
 
@@ -374,7 +432,7 @@ Con N distancias y residuos `r_i = y_i − (m d_i+b)`:
 
 ## 8. Cómo se calcula el error mostrado
 
-La interfaz utiliza `uncertainty_budget()` de `uncertainty.py`. Conserva la velocidad central del ajuste de **D frente a d** y calcula un **margen RMS estimado** que combina variación de las entradas, dispersión adicional y el desplazamiento de un escenario geométrico.
+La interfaz utiliza `uncertainty_budget()` de `src/uncertainty.py`. Conserva la velocidad central del ajuste de **D frente a d** y calcula un **margen RMS estimado** que combina variación de las entradas, dispersión adicional y el desplazamiento de un escenario geométrico.
 
 ### Entradas y distribuciones
 
@@ -549,10 +607,10 @@ Ejemplo de estructura con un par de los audios incluidos; el JSON completo conti
 La interfaz crea una carpeta nueva en:
 
 ```text
-<carpeta personal>/Documents/EcoLab/pares_FECHA_HORA_MICROSEGUNDOS/
+<carpeta personal>/Documents/SonoLab/pares_FECHA_HORA_MICROSEGUNDOS/
 ```
 
-Es exactamente `Path.home() / 'Documents' / 'EcoLab'`; se conserva ese nombre por compatibilidad. No se utiliza la carpeta `resultados` del proyecto ni se busca automáticamente una ubicación redirigida a OneDrive.
+Es exactamente `Path.home() / 'Documents' / 'SonoLab'`. No se utiliza la carpeta `resultados` del proyecto ni se busca automáticamente una ubicación redirigida a OneDrive.
 
 | Archivo o carpeta       | Contenido                                                                   |
 | ----------------------- | --------------------------------------------------------------------------- |
@@ -569,31 +627,16 @@ Las grabaciones originales permanecen intactas. Un archivo que falla puede dejar
 
 ## 12. Problemas habituales
 
-| Problema                                  | Qué revisar                                                                                                          |
-| ----------------------------------------- | -------------------------------------------------------------------------------------------------------------------- |
-| No aparece la ventana al ejecutar código  | Ejecutar `src/paired_app.py` con el Python del entorno virtual; comprobar Tkinter y las dependencias.                |
-| No se encuentra FFmpeg                    | Comprobar `Get-Command ffmpeg` desde la misma terminal. Para compilar también tiene que estar en `PATH`.             |
-| No abre el JSON                           | Comprobar sintaxis, `tipo`, rutas y que los audios estén disponibles.                                                |
-| No detecta dos eventos                    | Revisar ruido, recortes y separación; ampliar el gráfico, usar marcas manuales o repetir la toma.                    |
-| TA no supera a TB                         | Verificar que A corresponda al primer aplauso y B al segundo, y que las marcas correspondan al mismo ensayo.         |
-| «Sin ajuste»                              | Tener al menos tres separaciones distintas con velocidad calculada y una pendiente positiva.                         |
-| «± pendiente»                             | Alguna marca usada no tiene referencia suficiente para estimar su sensibilidad. Revisar los avisos de incertidumbre. |
-| El ejecutable no se reemplaza al compilar | Cerrar todas las instancias de SonoLab antes de volver a ejecutar `build_exe.py`.                                    |
-
-## 13. Pruebas de posición del aplauso y temperatura
-
-### Posición del aplauso
-
-El sonido sale de las manos. Si se aplaude por encima de un micrófono, el sonido tiene que recorrer una distancia hasta llegar incluso al micrófono más cercano. También cambia el recorrido hacia el otro micrófono. Por eso, la posición del aplauso puede modificar los tiempos medidos.
-
-El programa obtiene la velocidad comparando cuánto cambian esos tiempos al aumentar la separación entre los micrófonos. Si los aplausos se producen a una altura parecida sobre cada micrófono en todas las tomas, esa altura introduce un cambio parecido en los tiempos de cada medición. La forma en que los tiempos crecen con la separación se modifica poco y, por lo tanto, también cambia poco la velocidad obtenida del ajuste. Esto supone que la altura del aplauso es pequeña frente a la separación entre micrófonos.
-
-Si la posición de las manos varía entre tomas, su efecto también varía y puede aumentar la dispersión o alterar la velocidad calculada. La influencia de la posición depende, entonces, tanto de dónde se aplaude como de cuánto cambia esa ubicación entre mediciones.
-
-### Temperatura
-
-La velocidad del sonido no tiene un único valor válido para todas las condiciones. En el aire, aumenta cuando sube la temperatura y disminuye cuando baja. Esto significa que dos experiencias realizadas a distintas temperaturas pueden tener velocidades reales diferentes, aunque se utilicen los mismos micrófonos y el mismo procedimiento.
-
-Por eso, cada medición debe compararse con la referencia teórica correspondiente a la temperatura del aire durante esa experiencia. Usar siempre una misma referencia puede hacer que un cambio físico esperado se interprete como un error del método. A su vez, una diferencia entre mediciones no puede atribuirse únicamente a la temperatura si también cambiaron otras condiciones, como la posición del aplauso o la precisión con que se detectaron sus inicios.
-
-La posibilidad de observar ese efecto depende de la incertidumbre experimental. Si el cambio de velocidad esperado entre dos temperaturas es pequeño frente al margen de las mediciones, los resultados no permiten distinguirlo con claridad. Esto no significa que la temperatura deje de influir, sino que la precisión del experimento no alcanza para separar ese cambio de las demás variaciones de la medición.
+| Problema                                     | Qué revisar                                                                                                          |
+| -------------------------------------------- | -------------------------------------------------------------------------------------------------------------------- |
+| No aparece la ventana al ejecutar código     | Ejecutar `src/paired_app.py` con el Python del entorno virtual; comprobar Tkinter y las dependencias.                |
+| No se encuentra FFmpeg                       | Comprobar `Get-Command ffmpeg` en Windows o `command -v ffmpeg` en Linux desde la misma terminal. Para compilar también tiene que estar en `PATH`.             |
+| No abre el JSON                              | Comprobar sintaxis, `tipo`, rutas y que los audios estén disponibles.                                                |
+| No detecta dos eventos                       | Revisar ruido, recortes y separación; ampliar el gráfico, usar marcas manuales o repetir la toma.                    |
+| TA no supera a TB                            | Verificar que A corresponda al primer aplauso y B al segundo, y que las marcas correspondan al mismo ensayo.         |
+| «Sin ajuste»                                 | Tener al menos tres separaciones distintas con velocidad calculada y una pendiente positiva.                         |
+| «± pendiente»                                | Alguna marca usada no tiene referencia suficiente para estimar su sensibilidad. Revisar los avisos de incertidumbre. |
+| El ejecutable no se reemplaza al compilar    | Cerrar todas las instancias de SonoLab antes de volver a ejecutar `build_exe.py`.                                    |
+| El ejecutable descargado es un texto pequeño | Descargar los archivos reales con Git LFS; ver la sección 1.                                                         |
+| Linux muestra «Permission denied»            | Dar permiso con `chmod +x dist/linux/SonoLab` y ejecutarlo desde una ubicación que permita ejecutar programas.       |
+| Linux informa bibliotecas incompatibles      | Ejecutar desde el código o compilar en una distribución compatible; ver las secciones 2 y 3.                         |

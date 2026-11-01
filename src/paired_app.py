@@ -367,7 +367,7 @@ class SonoLabApp(BaseWindow):
             return
         self.invalidate_results()
         self.set_busy(True)
-        output = Path.home()/'Documents'/'EcoLab'/datetime.now().strftime('pares_%Y-%m-%d_%H-%M-%S_%f')
+        output = Path.home()/'Documents'/'SonoLab'/datetime.now().strftime('pares_%Y-%m-%d_%H-%M-%S_%f')
         def worker():
             try:
                 r = analyze_pairs(entries, output, temp,
